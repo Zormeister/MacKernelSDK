@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_OS_NEXUS_PRIVATE_H_
 #define _SKYWALK_OS_NEXUS_PRIVATE_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #if defined(PRIVATE) || defined(BSD_KERNEL_PRIVATE)
 #include <sys/guarded.h>
 #include <skywalk/os_channel.h>
@@ -421,7 +427,10 @@ struct nx_flow_req {
 #define NXFLOWREQF_USE_STABLE_ADDRESS     0x0080  /* if override local, use stable address */
 #define NXFLOWREQF_FLOWADV        0x0100  /* allocate flow advisory */
 #define NXFLOWREQF_ASIS           0x0200  /* create flow as is in nfr */
-#define NXFLOWREQF_LOW_LATENCY    0x0400  /* low latency flow */
+#define NXFLOWREQF_LOW_LATENCY    0x0400  /* low latency flow */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
+#define NXFLOWREQF_NOWAKEFROMSLEEP        0x0800  /* Don't wake for traffic to this flow */
+#endif
 
 #define NXFLOWREQF_BITS                                                   \
 	"\020\01TRACK\02QOS_MARKING\03FILTER\04CUSTOM_ETHER\05IPV6_ULA" \

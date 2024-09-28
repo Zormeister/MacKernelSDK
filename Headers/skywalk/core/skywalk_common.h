@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_COMMON_H_
 #define _SKYWALK_COMMON_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #if defined(PRIVATE) || defined(BSD_KERNEL_PRIVATE)
 /*
  * Routines common to kernel and userland.  This file is intended to
@@ -666,6 +672,114 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
  * Do not use these directly.
  * Use the skn_ variants if you need custom probe names.
  */
+
+/* this can probably be optimzied to take less space somehow - ZORMEISTER */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
+#define _sk_alloc(probename, size, flags, name)                         \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    ret = kheap_alloc_tag(KHEAP_DEFAULT, (size), Z_ZERO | (flags), \
+        (nsmr)->tag);                                                     \
+    DTRACE_SKYWALK3(probename, size_t, (size), int, (flags),        \
+        void *, ret);                                               \
+    ret;                                                            \
+})
+    
+#define _sk_free(probename, elem, size)                                 \
+{                                                                       \
+    DTRACE_SKYWALK2(probename, void *, (elem), size_t, (size));     \
+    kheap_free(KHEAP_DEFAULT, (elem), (size));                      \
+}
+
+#define _sk_alloc_type(probename, type, flags, name)                    \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    /* XXX Modify this to use KT_PRIV_ACCT later  */                \
+    ret = kalloc_type_tag(type, Z_ZERO | (flags), (name)->tag);    \
+    DTRACE_SKYWALK3(probename, char *, #type, int, (flags),         \
+        void *, ret);                                               \
+    ret;                                                            \
+})
+#define _sk_alloc_type_array(probename, type, count, flags, name)        \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    ret = kalloc_type_tag(type, (count), Z_ZERO | (flags), (name)->tag); \
+    DTRACE_SKYWALK4(probename, char *, #type, size_t, (count),      \
+        int, (flags), void *, ret);                                 \
+    ret;                                                            \
+})
+
+#define _sk_realloc_type_array(probename, type, oldcount, newcount, elem, flags, name) \
+({                                                                      \
+    void *ret;                                                      \
+                                                                    \
+    ret = krealloc_type_tag(type, (oldcount), (newcount), (elem),   \
+        Z_ZERO | (flags), (name)->tag);                             \
+    DTRACE_SKYWALK5(probename, void *, (elem), size_t, (oldcount),  \
+        size_t, (newcount), int, (flags), void *, ret);             \
+    ret;
+
+#define _sk_alloc_type_header_array(probename, htype, type, count, flags, name) \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    ret = kalloc_type_tag(htype, type, (count), Z_ZERO | (flags),  \
+        (name)->tag);                                                     \
+    DTRACE_SKYWALK5(probename, char *, #htype, char *, #type,       \
+        size_t, (count), int, (flags), void *, ret);                \
+    ret;                                                            \
+})
+    
+#define _sk_free_type(probename, type, elem)                            \
+{                                                                       \
+    DTRACE_SKYWALK2(probename, char *, #type, void *, (elem));      \
+    kfree_type(type, (elem));                                       \
+}
+
+#define _sk_free_type_array(probename, type, count, elem)               \
+{                                                                       \
+    DTRACE_SKYWALK3(probename, char *, #type, size_t, (count),      \
+        void *, (elem));                                            \
+    kfree_type(type, (count), (elem));                              \
+}
+
+#define _sk_free_type_header_array(probename, htype, type, count, elem) \
+{                                                                       \
+    DTRACE_SKYWALK4(probename, char *, #htype, char *, #type,       \
+        size_t, (count), void *, (elem));                           \
+    kfree_type(htype, type, (count), (elem));                       \
+}
+
+#define _sk_alloc_data(probename, size, flags, name)                     \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    ret = kalloc_data_tag((size), Z_ZERO | (flags), (name)->tag);        \
+    DTRACE_SKYWALK3(probename, size_t, (size), int, (flags),        \
+        void *, ret);                                               \
+    ret;                                                            \
+})
+
+#define _sk_realloc_data(probename, elem, oldsize, newsize, flags, name) \
+({                                                                      \
+    void *ret;                                                      \
+                                                                        \
+    ret = krealloc_data_tag((elem), (oldsize), (newsize),          \
+        Z_ZERO | (flags), (name)->tag);                                   \
+    DTRACE_SKYWALK5(probename, void *, (elem), size_t, (oldsize),   \
+        size_t, (newsize), int, (flags), void *, ret);              \
+    ret;                                                            \
+})
+
+#define _sk_free_data(probename, elem, size)                            \
+{                                                                       \
+    DTRACE_SKYWALK2(probename, void *, (elem), size_t, (size));     \
+    kfree_data((elem), (size));                                     \
+}
+#else
 #define _sk_alloc(probename, size, flags, tag)                          \
 ({                                                                      \
 	void *ret;                                                      \
@@ -772,12 +886,15 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 	DTRACE_SKYWALK2(probename, void *, (elem), size_t, (size));     \
 	kfree_data((elem), (size));                                     \
 }
+#endif
 
 #define sk_alloc(size, flags, tag)                                      \
 	_sk_alloc(sk_alloc, size, flags, tag)
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_3
 #define sk_realloc(elem, oldsize, newsize, flags, tag)                  \
 	_sk_realloc(sk_realloc, elem, oldsize, newsize, flags, tag)
+#endif
 
 #define sk_free(elem, size)                                             \
 	_sk_free(sk_free, elem, size)
@@ -791,6 +908,10 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 #define sk_alloc_type_header_array(htype, type, count, flags, tag)      \
 	_sk_alloc_type_header_array(sk_alloc_type_header_array, htype,  \
 	type, count, flags, tag)
+
+#define sk_realloc_type_array(type, oldsize, newsize, elem, flags, tag) \
+    _sk_realloc_type_array(sk_realloc_type_array, type,             \
+    oldsize, newsize, elem, flags, tag)
 
 #define sk_free_type(type, elem)                                        \
 	_sk_free_type(sk_free_type, type, elem)
@@ -858,6 +979,22 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 
 #define skn_free_data(name, elem, size)                                 \
 	_sk_free_data(sk_free_data_ ## name, elem, size)
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
+struct sk_tag_spec {
+    kern_allocation_name_t *skt_var;
+    const char             *skt_name;
+};
+
+extern void __sk_tag_make(const struct sk_tag_spec *spec);
+
+#define SKMEM_TAG_DEFINE(var, name) \
+    SECURITY_READ_ONLY_LATE(kern_allocation_name_t) var;            \
+    __startup_data struct sk_tag_spec __sktag_##var = {             \
+        .skt_var = &var, .skt_name = name,                          \
+    };                                                              \
+    STARTUP_ARG(ZALLOC, STARTUP_RANK_LAST, __sk_tag_make, &__sktag_##var)
+#endif
 
 /*!
  *  @abstract Compare byte buffers of n bytes long src1 against src2, applying

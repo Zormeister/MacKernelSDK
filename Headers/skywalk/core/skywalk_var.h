@@ -56,6 +56,12 @@
 #ifndef _SKYWALK_VAR_H_
 #define _SKYWALK_VAR_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #ifdef BSD_KERNEL_PRIVATE
 #include <stdint.h>
 #include <sys/param.h>

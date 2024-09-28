@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_MEM_SKMEMARENAVAR_H
 #define _SKYWALK_MEM_SKMEMARENAVAR_H
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #ifdef BSD_KERNEL_PRIVATE
 #include <skywalk/core/skywalk_var.h>
 
@@ -233,8 +239,10 @@ struct skmem_arena_system {
 struct kern_nexus_advisory;
 
 __BEGIN_DECLS
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_3
 extern void skmem_arena_init(void);
 extern void skmem_arena_fini(void);
+#endif
 extern struct skmem_arena *skmem_arena_create_for_nexus(
 	const struct nexus_adapter *, struct skmem_region_params[SKMEM_REGIONS],
 	struct kern_pbufpool **, struct kern_pbufpool **, boolean_t, boolean_t,

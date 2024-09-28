@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_NEXUS_NETIF_H_
 #define _SKYWALK_NEXUS_NETIF_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #include <skywalk/os_skywalk_private.h>
 #include <skywalk/nexus/nexus_pktq.h>
 
@@ -731,8 +737,10 @@ extern void netif_gso_fini(void);
 /*
  * Logical link functions
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_3
 extern void nx_netif_llink_module_init(void);
 extern void nx_netif_llink_module_fini(void);
+#endif
 extern void nx_netif_llink_retain(struct netif_llink *);
 extern void nx_netif_llink_release(struct netif_llink **);
 extern void nx_netif_qset_retain(struct netif_qset *);

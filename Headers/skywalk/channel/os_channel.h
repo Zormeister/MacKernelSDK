@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_OS_CHANNEL_H_
 #define _SKYWALK_OS_CHANNEL_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/cdefs.h>

@@ -28,6 +28,12 @@
 #ifndef _CUCKOO_HASHTABLE_H_
 #define _CUCKOO_HASHTABLE_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #include <sys/sysctl.h>
 
 SYSCTL_DECL(_kern_skywalk_libcuckoo);
@@ -75,7 +81,9 @@ struct cuckoo_hashtable_params {
 };
 
 __BEGIN_DECLS
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_3
 void cuckoo_hashtable_init(void);
+#endif
 struct cuckoo_hashtable * cuckoo_hashtable_create(
 	struct cuckoo_hashtable_params *p);
 void cuckoo_hashtable_free(struct cuckoo_hashtable *ht);

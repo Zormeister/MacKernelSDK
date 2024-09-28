@@ -64,6 +64,12 @@
 #ifndef _SKYWALK_NEXUS_FLOWSIWTCH_FLOW_FLOWVAR_H_
 #define _SKYWALK_NEXUS_FLOWSIWTCH_FLOW_FLOWVAR_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #ifdef BSD_KERNEL_PRIVATE
 #include <skywalk/core/skywalk_var.h>
 #include <skywalk/lib/cuckoo_hashtable.h>
@@ -881,8 +887,13 @@ extern struct flow_entry * fe_alloc(boolean_t can_block);
 extern void flow_mgr_setup_host_flow(struct flow_mgr *fm, struct nx_flowswitch *fsw);
 extern void flow_mgr_teardown_host_flow(struct flow_mgr *fm);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
+extern int flow_namespace_create(union sockaddr_in_4_6 *, uint8_t protocol,
+    netns_token *, uint16_t, struct ns_flow_info *);
+#else
 extern int flow_namespace_create(union sockaddr_in_4_6 *, uint8_t protocol,
     netns_token *, boolean_t, struct ns_flow_info *);
+#endif
 extern void flow_namespace_half_close(netns_token *token);
 extern void flow_namespace_withdraw(netns_token *);
 extern void flow_namespace_destroy(netns_token *);
