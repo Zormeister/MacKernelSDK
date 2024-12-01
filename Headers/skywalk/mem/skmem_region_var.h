@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2022 Apple Inc. All rights reserved.
+ * Copyright (c) 2016-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -28,6 +28,12 @@
 
 #ifndef _SKYWALK_MEM_SKMEMREGIONVAR_H
 #define _SKYWALK_MEM_SKMEMREGIONVAR_H
+
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
 
 #ifdef BSD_KERNEL_PRIVATE
 #include <skywalk/core/skywalk_var.h>
@@ -199,7 +205,9 @@ typedef void (*sksegment_dtor_fn_t)(struct sksegment *,
 /*
  * Region.
  */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define SKR_MAX_CACHES    2 /* max # of caches allowed on a region */
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define SKR_MAX_CACHES    3 /* max # of caches allowed on a region */
 #endif
 
@@ -310,7 +318,19 @@ struct skmem_region {
 #define SKR_MODE_SLAB           (1U << 30) /* backend for slab layer */
 #define SKR_MODE_MIRRORED       (1U << 31) /* controlled by another region */
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define SKR_MODE_THREADSAFE     0x8000  /* thread safe */
+#define SKR_MODE_MEMTAG         0x10000 /* enable memory tagging in this region */
+
+#define SKR_MODE_BITS           \
+	"\020\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
+	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
+	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
+	"\015GUARD\016PUREDATA\017PSEUDO\020THREADSAFE\021MEMTAG\037SLAB" \
+	"\040MIRRORED"
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 
 #define SKR_MODE_THREADSAFE     0x8000  /* thread safe */
 
@@ -346,11 +366,37 @@ struct skmem_region {
 #define SKMEM_REGION_CR_PUREDATA        0x2000  /* purely data; no pointers */
 #define SKMEM_REGION_CR_PSEUDO          0x4000  /* external backing store */
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define SKMEM_REGION_CR_THREADSAFE      0x8000  /* thread safe */
+#define SKMEM_REGION_CR_MEMTAG          0x10000 /* enable memory tagging in this region */
+
+#define SKMEM_REGION_CR_BITS    \
+	"\021\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
+	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
+	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
+	"\015GUARD\016PUREDATA\017PSEUDO\020THREADSAFE\021MEMTAG"
+
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#define SKMEM_REGION_CR_THREADSAFE      0x8000  /* thread safe */
+
+#define SKMEM_REGION_CR_BITS    \
+	"\020\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
+	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
+	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
+	"\015GUARD\016PUREDATA\017PSEUDO\020THREADSAFE"
+
+#else
+
 #define SKMEM_REGION_CR_BITS    \
 	"\020\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
 	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
 	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
 	"\015GUARD\016PUREDATA\017PSEUDO"
+
+#endif
 
 __BEGIN_DECLS
 extern void skmem_region_init(void);

@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_MEM_SKMEMCACHEVAR_H
 #define _SKYWALK_MEM_SKMEMCACHEVAR_H
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #ifdef BSD_KERNEL_PRIVATE
 #include <skywalk/core/skywalk_var.h>
 #include <skywalk/os_channel_private.h>
@@ -311,9 +317,21 @@ struct skmem_cache {
 #define SKM_MODE_CLEARONFREE    0x00000020      /* zero-out upon slab free */
 #define SKM_MODE_PSEUDO         0x00000040      /* external backing store */
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define SKM_MODE_RECLAIM        0x00000080      /* aggressive memory reclaim */
+
+#define SKM_MODE_BITS \
+	"\020\01NOMAGAZINES\02AUDIT\03NOREDIRECT\04BATCH\05DYNAMIC"     \
+	"\06CLEARONFREE\07PSEUDO\10RECLAIM"
+
+#else
+
 #define SKM_MODE_BITS \
 	"\020\01NOMAGAZINES\02AUDIT\03NOREDIRECT\04BATCH\05DYNAMIC"     \
 	"\06CLEARONFREE\07PSEUDO"
+
+#endif
 
 /*
  * Valid flags for sk{mem,region}_alloc().  SKMEM_FAILOK is valid only if
@@ -332,6 +350,12 @@ struct skmem_cache {
 #define SKMEM_CR_BATCH          0x2     /* support batch alloc/free */
 #define SKMEM_CR_DYNAMIC        0x4     /* enable magazine resizing */
 #define SKMEM_CR_CLEARONFREE    0x8     /* zero-out upon slab free */
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define SKMEM_CR_RECLAIM        0x10    /* aggressive memory reclaim */
+
+#endif
 
 __BEGIN_DECLS
 /*

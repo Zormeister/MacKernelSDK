@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -155,6 +155,9 @@ enum txrx {
 	NR_F,                   /* free only */
 	NR_TXRXAF,              /* alloc+free (alias) */
 	NR_EV = NR_TXRXAF,      /* event only */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	NR_LBA,                 /* large buf alloc */
+#endif
 	NR_ALL                  /* all of the above */
 };
 
@@ -173,6 +176,10 @@ sk_ring2str(enum txrx t)
 		return "FREE";
 	case NR_EV:
 		return "EVENT";
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		return "LARGE ALLOC";
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */
@@ -242,7 +249,11 @@ SLOT_INCREMENT(uint32_t i, uint32_t n, uint32_t lim)
 /*
  * Flow advisory entries.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define NX_FLOWADV_DEFAULT      512
+#else
 #define NX_FLOWADV_DEFAULT      682
+#endif
 #define NX_FLOWADV_MAX          (64 * 1024)
 #define FO_FLOWADV_CHUNK        64
 
@@ -337,6 +348,9 @@ extern int sk_netif_compat_rx_mbq_limit;
 extern char sk_ll_prefix[IFNAMSIZ];
 extern uint32_t sk_fsw_rx_agg_tcp;
 extern uint32_t sk_fsw_tx_agg_tcp;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern uint32_t sk_fsw_gso_mtu;
+#endif
 
 typedef enum fsw_rx_agg_tcp_host {
 	SK_FSW_RX_AGG_TCP_HOST_OFF = 0,

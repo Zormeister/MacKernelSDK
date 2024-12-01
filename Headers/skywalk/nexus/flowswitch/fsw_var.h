@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -176,10 +176,17 @@ extern void fsw_snoop(struct nx_flowswitch *fsw, struct flow_entry *fe,
 extern void fsw_receive(struct nx_flowswitch *fsw, struct pktq *pktq);
 #endif
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern void dp_flow_tx_process(struct nx_flowswitch *fsw,
+    struct flow_entry *fe, uint32_t flags);
+extern void dp_flow_rx_process(struct nx_flowswitch *fsw,
+    struct flow_entry *fe, uint32_t flags);
+#else
 extern void dp_flow_tx_process(struct nx_flowswitch *fsw,
     struct flow_entry *fe);
 extern void dp_flow_rx_process(struct nx_flowswitch *fsw,
     struct flow_entry *fe);
+#endif
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 
@@ -204,6 +211,11 @@ extern struct flow_owner * fsw_flow_add(struct nx_flowswitch *fsw,
     struct nx_flow_req *req0, int *error);
 extern int fsw_flow_del(struct nx_flowswitch *fsw, struct nx_flow_req *req,
     bool nolinger, void *params);
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern int fsw_flow_config(struct nx_flowswitch *fsw, struct nx_flow_req *req);
+#endif
+
 extern void fsw_flow_abort_tcp(struct nx_flowswitch *fsw, struct flow_entry *fe,
     struct __kern_packet *pkt);
 extern void fsw_flow_abort_quic(struct flow_entry *fe, uint8_t *token);

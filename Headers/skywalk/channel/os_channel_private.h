@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -194,6 +194,9 @@ struct __user_channel_schema {
 	 * number of event rings for this channel.
 	 */
 	const uint32_t  csm_num_event_rings;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED
+	const uint32_t csm_large_buf_alloc_rings;
+#endif
 
 	/*
 	 * Flow advisory region offset; this field will be 0 if the
@@ -257,7 +260,9 @@ struct __user_channel_schema {
  * to ensure that both kernel and libsystem_kernel are in sync,
  * as otherwise we'd assert due to version mismatch.
  */
-#if __MAC_OS_X_MIN_REQUIRED_VERSION >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define CSM_CURRENT_VERSION     18
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define CSM_CURRENT_VERSION     15
 #else
 #define CSM_CURRENT_VERSION     14
@@ -288,6 +293,9 @@ struct __user_channel_schema {
 #define CR_KIND_ALLOC           2       /* same as NR_A */
 #define CR_KIND_FREE            3       /* same as NR_F */
 #define CR_KIND_EVENT           4       /* same as NR_EV */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define CR_KIND_LARGE_BUF_ALLOC 5       /* same as NR_LBA */
+#endif
 
 typedef uint32_t slot_idx_t;
 
@@ -464,6 +472,10 @@ struct __flowadv_entry {
 #ifdef KERNEL
 #define fae_token               fae_id_32[0]
 #endif /* KERNEL */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	volatile uint32_t       fae_ce_cnt;
+	volatile uint32_t       fae_pkt_cnt;
+#endif
 	volatile uint32_t       fae_flags;      /* flags */
 	uint32_t                __fae_pad;
 #endif
@@ -616,6 +628,9 @@ struct channel {
 	const uint8_t chd_free_ring_idx;
 	const uint8_t chd_buf_alloc_ring_idx;
 	const uint8_t chd_buf_free_ring_idx;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	const uint8_t chd_large_buf_alloc_ring_idx;
+#endif
 #if defined(LIBSYSCALL_INTERFACE)
 #define CHD_RING_IDX_NONE    (uint8_t)-1
 #endif /* LIBSYSCALL_INTERFACE */

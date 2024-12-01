@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -51,6 +51,11 @@
  */
 #define OS_CHANNEL_HAS_NUM_BUFFERS_ATTR 1
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define OS_CHANNEL_HAS_LARGE_PACKET 1     /* CHANNEL_ATTR_LARGE_BUF_SIZE and */
+                                          /* os_channel_large_packet_alloc() */
+#endif
+
 /* Flow advisory table index */
 typedef uint32_t flowadv_idx_t;
 #define FLOWADV_IDX_NONE                ((flowadv_idx_t)-1)
@@ -93,6 +98,9 @@ typedef uint32_t sync_flags_t;
 #define CHANNEL_SYNCF_FREE         0x2     /* synchronize free ring */
 #define CHANNEL_SYNCF_PURGE        0x4     /* purge user packet pool */
 #define CHANNEL_SYNCF_ALLOC_BUF    0x8     /* synchronize buflet alloc ring */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define CHANNEL_SYNCF_LARGE_ALLOC  0x10    /* synchronize large alloc ring */
+#endif
 #endif /* LIBSYSCALL_INTERFACE || BSD_KERNEL_PRIVATE */
 
 /*
@@ -165,7 +173,7 @@ typedef enum {
 	CHANNEL_ATTR_MAX_FRAGS,         /* (g) max length of buflet chain */
 	CHANNEL_ATTR_NUM_BUFFERS,       /* (g) # of buffers in user pool */
 	CHANNEL_ATTR_LOW_LATENCY,       /* (g/s) bool: low latency channel */
-#if __MAC_OS_X_MIN_VERSION_ALLOWED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
     CHANNEL_ATTR_LARGE_BUF_SIZE,    /* (g) large buffer size (bytes) */
 #endif
 } channel_attr_type_t;

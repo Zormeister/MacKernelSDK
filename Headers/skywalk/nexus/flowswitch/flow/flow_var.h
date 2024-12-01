@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2016-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -251,7 +251,17 @@ struct kern_flow_demux_pattern {
 
 TAILQ_HEAD(flow_entry_list, flow_entry);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define FLOW_PROC_FLAG_GSO        0x0001
+typedef void (*flow_action_t)(struct nx_flowswitch *fsw, struct flow_entry *fe,
+    uint32_t flags);
+
+#else
+
 typedef void (*flow_action_t)(struct nx_flowswitch *fsw, struct flow_entry *fe);
+
+#endif
 
 struct flow_entry {
 	/**** Common Group ****/
@@ -371,7 +381,20 @@ struct flow_entry {
 #define FLOWENTF_DESTROYED      0x40000000 /* not in RB trees anymore */
 #define FLOWENTF_LINGERING      0x80000000 /* destroyed and in linger list */
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define FLOWENTF_EXTRL_FLOWID           0x00010000 /* flowid reservation is held externally */
+#define FLOWENTF_CHILD                  0x00020000 /* child flow */
+#define FLOWENTF_PARENT                 0x00040000 /* parent flow */
+#define FLOWENTF_NOWAKEFROMSLEEP        0x00080000 /* don't wake for this flow */
+
+#define FLOWENTF_BITS                                            \
+    "\020\01INITED\05TRACK\06CONNECTED\07LISTNER\011QOS_MARKING" \
+    "\012LOW_LATENCY\015WAIT_CLOSE\016CLOSE_NOTIFY\017EXT_PORT"  \
+    "\020EXT_PROTO\021EXT_FLOWID\031ABORTED\032NONVIABLE\033WITHDRAWN"  \
+    "\034TORN_DOWN\035HALF_CLOSED\037DESTROYED\40LINGERING"
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define FLOWENTF_EXTRL_FLOWID   0x00010000 /* flowid reservation is held externally */
 #define FLOWENT_CHILD           0x00020000 /* child flow */
 #define FLOWENT_PARENT          0X00040000 /* parent flow */
@@ -1054,7 +1077,12 @@ extern void fsw_host_rx(struct nx_flowswitch *, struct flow_entry *);
 extern void fsw_host_sendup(struct ifnet *, struct mbuf *, struct mbuf *,
     uint32_t, uint32_t);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern void flow_rx_agg_tcp(struct nx_flowswitch *fsw, struct flow_entry *fe,
+    uint32_t flags);
+#else
 extern void flow_rx_agg_tcp(struct nx_flowswitch *fsw, struct flow_entry *fe);
+#endif
 
 extern void flow_route_init(void);
 extern void flow_route_fini(void);

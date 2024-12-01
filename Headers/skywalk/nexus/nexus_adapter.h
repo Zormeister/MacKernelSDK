@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -147,6 +147,11 @@ struct nexus_adapter {
 	/* number of event rings */
 	uint32_t na_num_event_rings;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	/* number of large buffer alloc rings */
+	uint32_t na_num_large_buf_alloc_rings;
+#endif
+
 	uint64_t na_work_ts;            /* when we last worked on it */
 
 	/*
@@ -187,6 +192,10 @@ struct nexus_adapter {
 	uint32_t na_num_allocator_slots;
 	uint32_t na_num_event_slots;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	uint32_t na_num_large_buf_alloc_slots;
+#endif
+
 	/*
 	 * Combined slot count of all rings.
 	 * Used for allocating slot_ctx and scratch memory.
@@ -216,6 +225,10 @@ struct nexus_adapter {
 	struct __kern_channel_ring *na_alloc_rings;
 	struct __kern_channel_ring *na_free_rings;
 	struct __kern_channel_ring *na_event_rings;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	struct __kern_channel_ring *na_large_buf_alloc_rings;
+#endif
 
 	uint64_t na_ch_mit_ival;        /* mitigation interval */
 
@@ -445,6 +458,10 @@ na_get_nslots(const struct nexus_adapter *na, enum txrx t)
 		return na->na_num_allocator_slots;
 	case NR_EV:
 		return na->na_num_event_slots;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		return na->na_num_large_buf_alloc_slots;
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */
@@ -470,6 +487,11 @@ na_set_nslots(struct nexus_adapter *na, enum txrx t, uint32_t v)
 	case NR_EV:
 		na->na_num_event_slots = v;
 		break;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		na->na_num_large_buf_alloc_slots = v;
+		break;
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */

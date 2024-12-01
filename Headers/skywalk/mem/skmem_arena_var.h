@@ -246,7 +246,14 @@ extern void skmem_arena_init(void);
 extern void skmem_arena_fini(void);
 #endif
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+extern struct skmem_arena *skmem_arena_create_for_nexus(
+	const struct nexus_adapter *, struct skmem_region_params[SKMEM_REGIONS],
+	struct kern_pbufpool **, struct kern_pbufpool **, boolean_t, boolean_t,
+	struct kern_nexus_advisory *, int *);
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define SKMEM_PP_FLAG_KERNEL_ONLY                  0x01
 #define SKMEM_PP_FLAG_TRUNCATED_BUF                0x02
 #define SKMEM_PP_FLAG_RAW_BFLT                     0x04

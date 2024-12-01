@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -561,10 +561,17 @@ extern struct nexus_netif_adapter * na_netif_alloc(zalloc_flags_t);
 extern void na_netif_free(struct nexus_adapter *);
 extern void na_netif_finalize(struct nexus_netif_adapter *, struct ifnet *);
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern void nx_netif_llw_detach_notify(void *);
+#else
 extern void nx_netif_detach_notify(struct nexus_netif_adapter *);
+#endif
 extern void nx_netif_config_interface_advisory(struct kern_nexus *, bool);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 extern void nx_netif_get_interface_tso_capabilities(struct ifnet *, uint32_t *,
     uint32_t *);
+#endif
 #else
 extern int nx_netif_interface_advisory_report(struct nexus_adapter *,
     const struct ifnet_interface_advisory *);
@@ -705,6 +712,11 @@ extern struct __kern_packet *nx_netif_alloc_packet(struct kern_pbufpool *,
 extern void nx_netif_free_packet(struct __kern_packet *);
 extern void nx_netif_free_packet_chain(struct __kern_packet *, int *);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern void netif_ifp_inc_traffic_class_out_pkt(struct ifnet *, uint32_t,
+    uint32_t, uint32_t);
+#endif
+
 #define NETIF_CONVERT_RX        0x0001
 #define NETIF_CONVERT_TX        0x0002
 
@@ -759,6 +771,12 @@ extern void netif_receive(struct nexus_netif_adapter *,
 
 #define NETIF_XMIT_FLAG_CHANNEL 0x0001
 #define NETIF_XMIT_FLAG_HOST    0x0002
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define NETIF_XMIT_FLAG_REDIRECT 0x0004
+#define NETIF_XMIT_FLAG_PACING   0x0008
+#endif
+
 extern void netif_transmit(struct ifnet *, uint32_t);
 extern int netif_ring_tx_refill(const kern_channel_ring_t,
     uint32_t, uint32_t, boolean_t, boolean_t *, boolean_t);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -55,6 +55,12 @@
 
 #ifndef _SKYWALK_CHANNEL_CHANNELVAR_H_
 #define _SKYWALK_CHANNEL_CHANNELVAR_H_
+
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
 
 #ifdef BSD_KERNEL_PRIVATE
 #include <skywalk/core/skywalk_var.h>
@@ -746,6 +752,26 @@ KR_SLOT_INDEX(const struct __kern_channel_ring *kr,
  * with the metadata; for metadata with multiple buflets, this is the
  * first buffer's address.
  */
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define MD_BUFLET_ADDR(_md, _val) do {                                  \
+	void *_addr, *_objaddr;                                         \
+	uint32_t _doff, _dlen, _dlim;                                   \
+	_MD_BUFLET_ADDROFF(_md, _addr, _objaddr, _doff, _dlen, _dlim);  \
+	/* skip past buflet data offset */                              \
+	(_val) = (void *)((uint8_t *)_addr + _doff);                    \
+} while (0)
+
+#define MD_BUFLET_ADDR_ABS(_md, _val) do {                              \
+	void *_addr, *_objaddr;                                         \
+	uint32_t _doff, _dlen, _dlim;                                   \
+	_MD_BUFLET_ADDROFF(_md, _addr, _objaddr, _doff, _dlen, _dlim);  \
+	(_val) = (void *)_addr;                                         \
+} while (0)
+
+#else
+
 #define MD_BUFLET_ADDR(_md, _val) do {                                  \
 	void *_addr, *_objaddr;                                         \
 	uint16_t _doff, _dlen, _dlim;                                   \
@@ -766,6 +792,8 @@ KR_SLOT_INDEX(const struct __kern_channel_ring *kr,
 	(_val) = (void *)_addr;                                         \
 } while (0)
 
+#endif
+
 /* similar to MD_BUFLET_ADDR_ABS() but optimized only for packets */
 #define MD_BUFLET_ADDR_ABS_PKT(_md, _val) do {                          \
 	void *_addr;                                                    \
@@ -780,6 +808,25 @@ KR_SLOT_INDEX(const struct __kern_channel_ring *kr,
 	(_val) = (void *)_addr;                                         \
 } while (0)
 
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define MD_BUFLET_OBJADDR(_md, _val) do {                               \
+	void *_addr, *_objaddr;                                         \
+	uint32_t _doff, _dlen, _dlim;                                   \
+	_MD_BUFLET_ADDROFF(_md, _addr, _objaddr, _doff, _dlen, _dlim);  \
+	(_val) = (void *)_objaddr;                                      \
+} while (0)
+
+#define MD_BUFLET_ADDR_DLEN(_md, _val, _dlen) do {                      \
+	void *_addr, *_objaddr;                                         \
+	uint32_t _doff, _dlim;                                          \
+	_MD_BUFLET_ADDROFF(_md, _addr, _objaddr, _doff, _dlen, _dlim);  \
+	/* skip past buflet data offset */                              \
+	(_val) = (void *)((uint8_t *)_addr + _doff);                    \
+} while (0)
+
+#else
 
 /*
  * Return the buffer's object address associated with the metadata; for
@@ -804,6 +851,8 @@ KR_SLOT_INDEX(const struct __kern_channel_ring *kr,
 	/* skip past buflet data offset */                              \
 	(_val) = (void *)((uint8_t *)_addr + _doff);                    \
 } while (0)
+
+#endif
 
 /* kr_space: return available space for enqueue into kring */
 __attribute__((always_inline))

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2019-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -37,6 +37,20 @@
 
 #include <stdint.h>
 #include <mach/vm_types.h>
+#include <skywalk/os_packet.h>
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define OS_CHANNEL_EVENT_HAS_PACKET_EXPIRY_STATUS (1)
+
+typedef enum : uint32_t {
+	CHANNEL_EVENT_PACKET_TRANSMIT_STATUS = 1,
+    CHANNEL_EVENT_PACKET_TRANSMIT_EXPIRED = 2
+	CHANNEL_EVENT_MIN    = CHANNEL_EVENT_PACKET_TRANSMIT_STATUS,
+	CHANNEL_EVENT_MAX    = CHANNEL_EVENT_PACKET_TRANSMIT_EXPIRED,
+} os_channel_event_type_t;
+
+#else
 
 typedef enum {
 	CHANNEL_EVENT_PACKET_TRANSMIT_STATUS = 1,
@@ -44,7 +58,10 @@ typedef enum {
 	CHANNEL_EVENT_MAX    = CHANNEL_EVENT_PACKET_TRANSMIT_STATUS,
 } os_channel_event_type_t;
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#endif
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
+
 typedef enum : int32_t {
     CHANNEL_EVENT_SUCCESS = 0,
     CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_FLUSH = 1,
@@ -52,18 +69,67 @@ typedef enum : int32_t {
     CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_TIMEOUT_EXPIRED_DROPPED = 3,
     CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_TIMEOUT_EXPIRED_NODROP = 4,
 } os_channel_event_error_t;
+
 #else
+
 typedef enum {
 	CHANNEL_EVENT_SUCCESS = 0,
 	CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_FLUSH = 1,
 	CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_RETRY_FAILED = 2,
 } os_channel_event_error_t;
+
 #endif
 
 typedef struct os_channel_event_packet_transmit_status {
 	packet_id_t    packet_id;
 	int32_t        packet_status;
 } os_channel_event_packet_transmit_status_t;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+/*
+ * Subtypes of the `transmission expired' channel event.
+ *
+ * NOTE: When adding new event subtypes, check whether
+ * the constant `OS_CHANNEL_EVENT_MAX_SUBEVENT_COUNT'
+ * has to be updated.
+ */
+typedef enum : uint16_t {
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ERR_NOT_EXPIRED                      = 0,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ERR_EXPIRED_DROPPED          = 1,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ERR_EXPIRED_NOT_DROPPED      = 2,
+} os_channel_event_packet_tx_expiration_status_t;
+
+typedef enum : uint16_t {
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_NONE                          = 0,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_HW                            = 1,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_DRIVER                        = 2,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_NETIF                         = 3,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_FSW                           = 4,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_AQM                           = 5,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_CHANNEL                       = 6,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_PROTO_1                       = 7,
+	CHANNEL_EVENT_PKT_TRANSMIT_EXPIRED_ORIGIN_PROTO_2                       = 8,
+} os_channel_packet_tx_expiration_origin_t;
+
+typedef struct os_channel_event_packet_transmit_expired {
+	packet_id_t    packet_id;
+	uint64_t       packet_tx_expiration_deadline;
+	uint64_t       packet_tx_expiration_timestamp;
+	uint16_t       packet_tx_expiration_status;
+	uint16_t       packet_tx_expiration_origin;
+}  os_channel_event_packet_transmit_expired_t;
+
+/* Maximal number of distinct subevent types */
+#define OS_CHANNEL_EVENT_MAX_SUBEVENT_COUNT (3)
+
+union __os_channel_event_largest_event_payload {
+	os_channel_event_packet_transmit_status_t tx;
+	os_channel_event_packet_transmit_expired_t ex;
+};
+#define CHANNEL_EVENT_MAX_PAYLOAD_LEN (sizeof(union __os_channel_event_largest_event_payload))
+
+#endif
 
 /*
  * opaque handles
@@ -75,7 +141,11 @@ struct os_channel_event_data {
 	os_channel_event_type_t    event_type;
 	boolean_t                  event_more;
 	uint16_t                   event_data_length;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+    uint8_t                    *event_data __counted_by(event_data_length);
+#else
 	uint8_t                    *event_data;
+#endif
 };
 
 #if KERNEL
@@ -103,15 +173,29 @@ struct __kern_channel_event {
     uint32_t                   ev_flags;
     uint16_t                   _reserved;
     uint16_t                   ev_dlen;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+    uint8_t                    ev_data[__counted_by(ev_dlen)];
+#else
     uint8_t                    ev_data[];
+#endif
 };
 
 /* event_flags */
 #define CHANNEL_EVENT_FLAG_MORE_EVENT    0x1
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define CHANNEL_EVENT_MAX_LEN  (sizeof(struct __kern_channel_event) + \
+    CHANNEL_EVENT_MAX_PAYLOAD_LEN)
+
+#else
+
 /* convenience macro */
 #define CHANNEL_EVENT_TX_STATUS_LEN    (sizeof(struct __kern_channel_event) + \
     sizeof(os_channel_event_packet_transmit_status_t))
+
+#endif
+
 #endif /* LIBSYSCALL_INTERFACE || BSD_KERNEL_PRIVATE */
 
 #if defined(BSD_KERNEL_PRIVATE)
@@ -134,6 +218,21 @@ __END_DECLS
 __BEGIN_DECLS
 extern errno_t kern_channel_event_transmit_status(const ifnet_t,
     os_channel_event_packet_transmit_status_t *, uint32_t);
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+/* Post a `packet transmit status' event to a flowswitch */
+extern errno_t kern_channel_event_transmit_status_with_nexus(const uuid_t,
+    os_channel_event_packet_transmit_status_t *, uint32_t);
+/* Post a `packet transmit expired' event to an ifnet device */
+extern errno_t kern_channel_event_transmit_expired(const ifnet_t,
+    os_channel_event_packet_transmit_expired_t *, uint32_t);
+/* Post a `packet transmit expired' event to a flowswitch */
+extern errno_t kern_channel_event_transmit_expired_with_nexus(const uuid_t,
+    os_channel_event_packet_transmit_expired_t *, uint32_t);
+
+#endif
+
 __END_DECLS
 #endif /* KERNEL */
 #endif
