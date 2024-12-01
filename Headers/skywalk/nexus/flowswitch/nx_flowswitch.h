@@ -83,11 +83,19 @@
 #define NX_FSW_MAXSLOTS         NX_MAX_NUM_SLOT_PER_RING /* max # of slots */
 
 #define NX_FSW_TXBATCH          64      /* default TX batch size */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_2
+
+#define NX_FSW_RXBATCH          32      /* default RX batch size */
+
+#else
+
 #if !XNU_TARGET_OS_OSX
 #define NX_FSW_RXBATCH          64      /* default RX batch size */
 #else /* XNU_TARGET_OS_OSX */
 #define NX_FSW_RXBATCH          32      /* default RX batch size */
 #endif /* XNU_TARGET_OS_OSX */
+
+#endif
 
 #define NX_FSW_BUFSIZE          (2 * 1024)  /* default buffer size */
 
