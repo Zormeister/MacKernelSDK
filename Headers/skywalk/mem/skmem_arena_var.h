@@ -64,7 +64,9 @@ struct skmem_arena {
 	skmem_arena_type_t      ar_type;        /* arena type */
 	uint32_t                ar_flags;       /* ARF_* */
 	size_t                  ar_zsize;       /* zone object size */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_3
 	struct zone             *ar_zone;       /* owning zone */
+#endif
 	IOSKArenaRef            ar_ar;          /* backing IOSKArena */
 
 	/*

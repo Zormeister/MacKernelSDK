@@ -82,9 +82,15 @@ enum {
  * IF_ATTACH_NX_FSW_TRANSPORT_NETAGENT cannot be changed after boot, and so has
  * to be set by the if_attach_nx bootarg.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+#define SKYWALK_NETWORKING_ENABLED                              \
+	(IF_ATTACH_NX_NETIF_COMPAT | IF_ATTACH_NX_FLOWSWITCH |  \
+	IF_ATTACH_NX_FSW_TRANSPORT_NETAGENT | IF_ATTACH_NX_FSW_IP_NETAGENT)
+#else
 #define SKYWALK_NETWORKING_ENABLED                              \
 	(IF_ATTACH_NX_NETIF_COMPAT | IF_ATTACH_NX_FLOWSWITCH |  \
 	IF_ATTACH_NX_FSW_TRANSPORT_NETAGENT)
+#endif
 
 /*
  * To partially enable Skywalk to only let the host (kernel) stack to work,

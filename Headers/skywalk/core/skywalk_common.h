@@ -675,6 +675,8 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 
 /* this can probably be optimzied to take less space somehow - ZORMEISTER */
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_3
 #define _sk_alloc(probename, size, flags, name)                         \
 ({                                                                      \
     void *ret;                                                      \
@@ -692,6 +694,28 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
     kheap_free(KHEAP_DEFAULT, (elem), (size));                      \
 }
 
+#else
+
+#define _sk_alloc_type_hash(probename, heap, size, flags, name)         \
+({                                                                      \
+	void *ret;                                                      \
+                                                                        \
+	ret = kalloc_type_var_impl((heap), (size),                      \
+	    __zone_flags_mix_tag((flags) | Z_ZERO, (name)->tag), NULL); \
+	DTRACE_SKYWALK4(probename, char *, (heap)->kt_name + 5,         \
+	    size_t, (size), int, (flags), void *, ret);                 \
+	ret;                                                            \
+})
+
+#define _sk_free_type_hash(probename, heap, size, elem)                 \
+{                                                                       \
+	DTRACE_SKYWALK3(probename, char *, (heap)->kt_name + 5,         \
+	    size_t, (size), void *, (elem));                            \
+	kfree_type_var_impl((heap), (elem), (size));                    \
+}
+
+#endif
+
 #define _sk_alloc_type(probename, type, flags, name)                    \
 ({                                                                      \
     void *ret;                                                      \
@@ -702,6 +726,7 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
         void *, ret);                                               \
     ret;                                                            \
 })
+
 #define _sk_alloc_type_array(probename, type, count, flags, name)        \
 ({                                                                      \
     void *ret;                                                      \
@@ -720,7 +745,8 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
         Z_ZERO | (flags), (name)->tag);                             \
     DTRACE_SKYWALK5(probename, void *, (elem), size_t, (oldcount),  \
         size_t, (newcount), int, (flags), void *, ret);             \
-    ret;
+    ret;                                                            \
+})
 
 #define _sk_alloc_type_header_array(probename, htype, type, count, flags, name) \
 ({                                                                      \
@@ -888,16 +914,20 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 }
 #endif
 
+#ifdef _sk_alloc
 #define sk_alloc(size, flags, tag)                                      \
 	_sk_alloc(sk_alloc, size, flags, tag)
+#endif
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_3
 #define sk_realloc(elem, oldsize, newsize, flags, tag)                  \
 	_sk_realloc(sk_realloc, elem, oldsize, newsize, flags, tag)
 #endif
 
+#ifdef _sk_free
 #define sk_free(elem, size)                                             \
 	_sk_free(sk_free, elem, size)
+#endif
 
 #define sk_alloc_type(type, flags, tag)                                 \
 	_sk_alloc_type(sk_alloc_type, type, flags, tag)
@@ -938,13 +968,17 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
  * of the same call within the same function and you want the dtrace
  * probename to be different at each callsite.
  */
+
+#ifdef _sk_alloc
 #define skn_alloc(name, size, flags, tag)                               \
 	_sk_alloc(sk_alloc_ ## name, size, flags, tag)
+#endif
 
 #define skn_realloc(name, elem, oldsize, newsize, flags, tag)           \
 	_sk_realloc(sk_realloc_ ## name, elem, oldsize, newsize, flags, \
 	tag)
 
+#ifdef _sk_free
 #define skn_free(name, elem, size)                                      \
 	_sk_free(sk_free_ ## name, elem, size)
 
@@ -979,6 +1013,23 @@ sk_copy64_64x(uint64_t *src, uint64_t *dst, size_t l)
 
 #define skn_free_data(name, elem, size)                                 \
 	_sk_free_data(sk_free_data_ ## name, elem, size)
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+
+#define sk_alloc_type_hash(heap, size, flags, tag)                      \
+	_sk_alloc_type_hash(sk_alloc_type_hash, heap, size, flags, tag)
+
+#define sk_free_type_hash(heap, size, elem)                             \
+	_sk_free_type_hash(sk_free_type_hash, heap, size, elem)
+
+#define skn_alloc_type_hash(name, heap, size, flags, tag)               \
+	_sk_alloc_type_hash(sk_alloc_type_hash_ ## name, heap, size,    \
+	flags, tag)
+
+#define skn_free_type_hash(name, heap, size, elem)                      \
+	_sk_free_type_hash(sk_free_type_hash_ ## name, heap, size, elem)
+
+#endif
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_12_3
 struct sk_tag_spec {

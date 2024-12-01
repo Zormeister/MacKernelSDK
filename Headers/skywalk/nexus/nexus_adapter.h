@@ -193,10 +193,12 @@ struct nexus_adapter {
 	 */
 	uint32_t na_total_slots;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_3
 	/*
 	 * For tracking ring memory allocated by sk_alloc()
 	 */
 	size_t na_rings_mem_sz;
+#endif
 
 	/*
 	 * Flow advisory (if applicable).
@@ -236,7 +238,11 @@ struct nexus_adapter {
 	 */
 	kern_packet_t *na_scratch;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+	struct __kern_channel_ring *na_tail; /* pointer past the last ring */
+#else
 	void *na_tailroom; /* space below the rings array (used for leases) */
+#endif
 
 #if CONFIG_NEXUS_FLOWSWITCH || CONFIG_NEXUS_NETIF
 	/*
@@ -630,8 +636,13 @@ extern void na_attach_common(struct nexus_adapter *,
  */
 extern int na_update_config(struct nexus_adapter *na);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+extern int na_rings_mem_setup(struct nexus_adapter *, boolean_t,
+    struct kern_channel *);
+#else
 extern int na_rings_mem_setup(struct nexus_adapter *, uint32_t, boolean_t,
     struct kern_channel *);
+#endif
 extern void na_rings_mem_teardown(struct nexus_adapter *,
     struct kern_channel *, boolean_t);
 extern void na_ch_rings_defunct(struct kern_channel *, struct proc *);

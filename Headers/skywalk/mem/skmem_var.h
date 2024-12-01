@@ -62,6 +62,16 @@
 #define SKMEM_CACHE_PREFIX      "skc"
 #define SKMEM_ZONE_PREFIX       "skywalk"
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+#if DEBUG || DEVELOPMENT
+#define SMKEM_KT_DEFAULT        KT_PRIV_ACCT
+#else
+#define SMKEM_KT_DEFAULT        KT_DEFAULT
+#endif
+#define SKMEM_TYPE_DEFINE(var, type) \
+	KALLOC_TYPE_DEFINE(var, type, SMKEM_KT_DEFAULT)
+#endif
+
 extern lck_attr_t skmem_lock_attr;
 extern lck_grp_t skmem_lock_grp;
 extern uint32_t skmem_usr_buf_seg_size;
