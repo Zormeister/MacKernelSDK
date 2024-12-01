@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2016-2022 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -169,6 +169,11 @@ typedef enum {
 typedef uint32_t packet_csum_flags_t;
 typedef uint32_t packet_trace_id_t;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+typedef uint32_t packet_flowid_t;
+typedef uint16_t packet_trace_tag_t;
+#endif
+
 /*
  * PACKET_CSUM_PARTIAL indicates the following:
  *
@@ -195,6 +200,20 @@ typedef uint32_t packet_trace_id_t;
 #define PACKET_CSUM_IP_VALID    0x0200    /* and the IP checksum is valid */
 #define PACKET_CSUM_DATA_VALID  0x0400    /* csum_rx_val is valid */
 #define PACKET_CSUM_PSEUDO_HDR  0x0800    /* csum_rx_val includes pseudo hdr */
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+typedef enum : uint32_t {
+	PACKET_TSO_IPV4  = 0x00100000,
+	PACKET_TSO_IPV6  = 0x00200000,
+} packet_tso_flags_t;
+
+#define PACKET_CSUM_TSO_FLAGS \
+	(PACKET_TSO_IPV4 | PACKET_TSO_IPV6)
+
+#define PACKET_HAS_FULL_CHECKSUM_FLAGS(_p) \
+	(((_p)->pkt_csum_flags & PACKET_CSUM_RX_FULL_FLAGS) == PACKET_CSUM_RX_FULL_FLAGS)
+
+#endif
 
 #define PACKET_HAS_VALID_IP_CSUM(_p) \
     (((_p)->pkt_csum_flags & (PACKET_CSUM_IP_CHECKED | PACKET_CSUM_IP_VALID)) \
@@ -223,6 +242,10 @@ typedef uint32_t packet_trace_id_t;
 #define OS_PACKET_HAS_CHECKSUM_API      1
 #define OS_PACKET_HAS_SEGMENT_COUNT     1
 #define OS_PACKET_HAS_TRACING_API       1
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define OS_PACKET_HAS_SEGMENT_SIZE      1
+#endif
 
 /*
  * Valid values for pkt_aggr_type.
@@ -303,6 +326,58 @@ typedef struct packet_id {
 
 #define PKT_TRACE_TX_DRV_START      (SKYWALKDBG_CODE(DBG_SKYWALK_PACKET, 0x012) | DBG_FUNC_START)
 #define PKT_TRACE_TX_DRV_END        (SKYWALKDBG_CODE(DBG_SKYWALK_PACKET, 0x012) | DBG_FUNC_END)
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+/*
+ * @enum packet_expiry_action_t
+ * @abstract The desired action(s) to take upon the expiration of the packet
+ * @discussion Bitfield property to express the desired actions to take when the packet expires.
+ *    At the moment the actions are only taken for the TX packets.
+ *
+ * @constant PACKET_EXPIRY_ACTION_DROP      - drop the packet
+ * @constant PACKET_EXPIRY_ACTION_NOTIFY    - notify the upper layers
+ */
+typedef enum {
+	PACKET_EXPIRY_ACTION_NONE   = 0x0,
+	PACKET_EXPIRY_ACTION_DROP   = 0x1,
+	PACKET_EXPIRY_ACTION_NOTIFY = 0x2,
+} packet_expiry_action_t;
+
+/*
+ * @enum packet_app_metadata_type_t
+ * @abstract Application specific metadata which can be used by the Network
+ *           Stack or Network Interface Driver/firmware.
+ * @discussion Supported Application types are:
+ * @constant PACKET_APP_METADATA_TYPE_VOICE  - voice application
+ */
+typedef enum : uint8_t {
+#if defined(LIBSYSCALL_INTERFACE) || defined(BSD_KERNEL_PRIVATE)
+	PACKET_APP_METADATA_TYPE_UNSPECIFIED = 0,
+#endif /* LIBSYSCALL_INTERFACE || BSD_KERNEL_PRIVATE */
+	PACKET_APP_METADATA_TYPE_VOICE = 1,
+#if defined(LIBSYSCALL_INTERFACE) || defined(BSD_KERNEL_PRIVATE)
+	PACKET_APP_METADATA_TYPE_MIN = PACKET_APP_METADATA_TYPE_VOICE,
+	PACKET_APP_METADATA_TYPE_MAX = PACKET_APP_METADATA_TYPE_VOICE,
+#endif /* LIBSYSCALL_INTERFACE || BSD_KERNEL_PRIVATE */
+} packet_app_metadata_type_t;
+
+/*
+ * @enum packet_voice_app_metadata_t
+ * @abstract Voice application specific metadata.
+ * @discussion Supported Voice application metadata values are:
+ * @constant PACKET_VOICE_APP_METADATA_UNSPECIFIED  - metadata not specified.
+ * @constant PACKET_VOICE_APP_METADATA_SPEECH   - speech frame.
+ * @constant PACKET_VOICE_APP_METADATA_SILENCE  - silence frame.
+ * @constant PACKET_VOICE_APP_METADATA_OTHER  - RTCP XR, RTCP, or DTMF.
+ */
+typedef enum : uint8_t {
+	PACKET_VOICE_APP_METADATA_UNSPECIFIED    = 0x0,
+	PACKET_VOICE_APP_METADATA_SPEECH         = 0x1,
+	PACKET_VOICE_APP_METADATA_SILENCE        = 0x2,
+	PACKET_VOICE_APP_METADATA_OTHER          = 0x3,
+} packet_voice_app_metadata_t;
+
+#endif
 
 /*
  * Kernel APIs.
@@ -385,6 +460,10 @@ struct kern_pbufpool_init {
 #define KBIF_IODIR_OUT          0x200   /* io direction out (host to device) */
 #define KBIF_KERNEL_READONLY    0x400   /* kernel read-only */
 #define KBIF_NO_MAGAZINES       0x800   /* disable per-CPU magazines layer */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define KBIF_RAW_BFLT           0x1000  /* configure raw buflet */
+#define KBIF_THREADSAFE         0x2000  /* thread safe memory descriptor */
+#endif
 
 #define KERN_PBUFPOOL_VERSION_1         1
 #define KERN_PBUFPOOL_VERSION_2         2       /* added ctx retain/release */
@@ -400,7 +479,12 @@ struct kern_pbufpool_memory_info {
 	uint32_t                kpm_buflets;    /* number of buflets */
 	uint32_t                kpm_bufsize;    /* size of each buffer */
 	uint32_t                kpm_bufsegs;    /* number of buffer segments */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 	uint32_t                kpm_buf_seg_size; /* size of a buffer segment */
+	uint32_t                kpm_buf_obj_size; /* size of the shared buffer object */
+#else
+	uint32_t                kpm_buf_seg_size; /* size of a buffer segment */
+#endif
 } __attribute__((aligned(64)));
 
 #define KPMF_EXTERNAL           0x1             /* externally configured */
@@ -513,16 +597,29 @@ extern kern_packet_svc_class_t kern_packet_get_service_class(
 	const kern_packet_t);
 extern errno_t kern_packet_get_service_class_index(
 	const kern_packet_svc_class_t, uint32_t *);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define HAS_KERN_PACKET_COMPRESSION_GENERATION_COUNT 1
+extern errno_t kern_packet_set_compression_generation_count(const kern_packet_t,
+    const uint32_t);
+extern errno_t kern_packet_get_compression_generation_count(const kern_packet_t, uint32_t *);
+#endif
 extern boolean_t kern_packet_is_high_priority(
 	const kern_packet_t);
 extern errno_t kern_packet_set_traffic_class(const kern_packet_t,
     kern_packet_traffic_class_t);
 extern kern_packet_traffic_class_t kern_packet_get_traffic_class(
 	const kern_packet_t);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_packet_set_inet_checksum(const kern_packet_t,
+    const packet_csum_flags_t, const uint16_t, const uint16_t, boolean_t);
+extern packet_csum_flags_t kern_packet_get_inet_checksum(const kern_packet_t,
+    uint16_t *, uint16_t *, boolean_t);
+#else
 extern errno_t kern_packet_set_inet_checksum(const kern_packet_t,
     const packet_csum_flags_t, const uint16_t, const uint16_t);
 extern packet_csum_flags_t kern_packet_get_inet_checksum(const kern_packet_t,
     uint16_t *, uint16_t *);
+#endif
 extern errno_t kern_packet_get_timestamp(const kern_packet_t, uint64_t *,
     boolean_t *);
 extern errno_t kern_packet_set_timestamp(const kern_packet_t, uint64_t,
@@ -552,6 +649,24 @@ extern uint16_t kern_packet_get_vlan_id(const uint16_t);
 extern uint8_t kern_packet_get_vlan_priority(const uint16_t);
 extern void kern_packet_set_wake_flag(const kern_packet_t);
 extern boolean_t kern_packet_get_wake_flag(const kern_packet_t);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_packet_set_expiry_action(const kern_packet_t, const packet_expiry_action_t);
+extern errno_t kern_packet_get_expiry_action(const kern_packet_t, packet_expiry_action_t *);
+
+extern errno_t kern_packet_get_flowid(const kern_packet_t, packet_flowid_t *);
+extern void kern_packet_set_trace_tag(const kern_packet_t ph, packet_trace_tag_t tag);
+extern packet_trace_tag_t kern_packet_get_trace_tag(const kern_packet_t ph);
+extern errno_t kern_packet_get_tx_nexus_port_id(const kern_packet_t,
+    uint32_t *);
+extern errno_t kern_packet_get_app_metadata(const kern_packet_t,
+    packet_app_metadata_type_t *, uint8_t *);
+extern errno_t kern_packet_get_protocol_segment_size(const kern_packet_t,
+    uint16_t *);
+extern void * kern_packet_get_priv(const kern_packet_t);
+extern void kern_packet_set_priv(const kern_packet_t, void *);
+extern void kern_packet_get_tso_flags(const kern_packet_t, packet_tso_flags_t *);
+void kern_packet_set_segment_count(const kern_packet_t, uint8_t);
+#endif
 
 /*
  * Quantum & Packets.
@@ -611,6 +726,21 @@ extern kern_segment_t kern_buflet_get_object_segment(const kern_buflet_t,
 extern errno_t kern_buflet_set_data_limit(const kern_buflet_t, const uint16_t);
 extern uint16_t kern_buflet_get_data_limit(const kern_buflet_t);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_buflet_set_buffer_offset(const kern_buflet_t buf,
+    const uint16_t off);
+extern uint16_t kern_buflet_get_buffer_offset(const kern_buflet_t buf);
+extern errno_t kern_buflet_set_gro_len(const kern_buflet_t buf,
+    const uint16_t len);
+extern uint16_t kern_buflet_get_gro_len(const kern_buflet_t buf);
+extern void *kern_buflet_get_next_buf(const kern_buflet_t buflet,
+    const void *prev_buf);
+extern errno_t kern_buflet_clone(const kern_buflet_t buf1,
+    kern_buflet_t *pbuf_array, uint32_t *size, struct kern_pbufpool *pool);
+extern errno_t kern_buflet_clone_nosleep(const kern_buflet_t buf1,
+    kern_buflet_t *pbuf_array, uint32_t *size, struct kern_pbufpool *pool);
+#endif
+
 /*
  * Packet buffer pool.
  */
@@ -647,10 +777,24 @@ extern errno_t kern_pbufpool_alloc_buffer_nosleep(const kern_pbufpool_t
     kern_obj_idx_seg_t *sg_idx);
 extern void kern_pbufpool_free_buffer(const kern_pbufpool_t pbufpool,
     mach_vm_address_t baddr);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_pbufpool_alloc_buflet(const kern_pbufpool_t,
+    kern_buflet_t *, bool);
+extern errno_t kern_pbufpool_alloc_buflet_nosleep(const kern_pbufpool_t,
+    kern_buflet_t *, bool);
+
+extern errno_t kern_pbufpool_alloc_batch_buflet(const kern_pbufpool_t,
+    kern_buflet_t *, uint32_t *size, bool);
+extern errno_t kern_pbufpool_alloc_batch_buflet_nosleep(const kern_pbufpool_t,
+    kern_buflet_t *, uint32_t *size, bool);
+extern void kern_pbufpool_free_buflet(const kern_pbufpool_t pp,
+    kern_buflet_t pbuf);
+#else
 extern errno_t kern_pbufpool_alloc_buflet(const kern_pbufpool_t,
     kern_buflet_t *);
 extern errno_t kern_pbufpool_alloc_buflet_nosleep(const kern_pbufpool_t,
     kern_buflet_t *);
+#endif
 extern void kern_pbufpool_destroy(kern_pbufpool_t);
 extern kern_segment_idx_t kern_segment_get_index(const kern_segment_t);
 __END_DECLS

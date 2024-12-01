@@ -309,7 +309,19 @@ netns_change_addr_in6(netns_token *token, struct in6_addr addr)
  */
 #define NETNS_EXTBGIDLE         0x80
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+/*
+ * Set when the reservation allows reusing the port for new listener
+ */
+#define NETNS_REUSEPORT         0x100
+#define NETNS_CONFIGURATION_FLAGS (NETNS_NOWAKEFROMSLEEP | NETNS_RECVANYIF | \
+	                        NETNS_EXTBGIDLE | NETNS_REUSEPORT)
+
+#else
+
 #define NETNS_CONFIGURATION_FLAGS (NETNS_NOWAKEFROMSLEEP | NETNS_RECVANYIF | \
 	                        NETNS_EXTBGIDLE)
+
+#endif
 
 #endif /* !_SKYWALK_NAMESPACE_NETNS_H_ */

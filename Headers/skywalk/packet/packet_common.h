@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2016-2022 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -28,6 +28,12 @@
 
 #ifndef _SKYWALK_PACKET_COMMON_H_
 #define _SKYWALK_PACKET_COMMON_H_
+
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
 
 #if defined(PRIVATE) || defined(BSD_KERNEL_PRIVATE)
 /*
@@ -124,6 +130,18 @@
 	_PKT_GET_NEXT_BUFLET(_pkt, _bcnt, _pbuf, _buf);                 \
 } while (0)
 #endif /* KERNEL */
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#ifdef KERNEL
+#define PKT_COMPOSE_NX_PORT_ID(_nx_port, _gencnt)    \
+	((uint32_t)((_gencnt & 0xffff) << 16) | (_nx_port & 0xffff))
+
+#define PKT_DECOMPOSE_NX_PORT_ID(_nx_port_id, _nx_port, _gencnt) do {   \
+	_nx_port = _nx_port_id & 0xffff;                                \
+	_gencnt = (_nx_port_id >> 16) & 0xffff;                         \
+} while (0)
+#endif /* KERNEL */
+#endif
 
 __attribute__((always_inline))
 static inline int
@@ -350,6 +368,48 @@ __packet_set_expire_time(const uint64_t ph, const uint64_t ts)
 	return 0;
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_expiry_action(const uint64_t ph, packet_expiry_action_t *pea)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+#ifdef KERNEL
+	struct __packet_opt *po = PKT_ADDR(ph)->pkt_com_opt;
+#else /* !KERNEL */
+	struct __packet_opt *po = &PKT_ADDR(ph)->pkt_com_opt;
+#endif /* !KERNEL */
+	if ((PKT_ADDR(ph)->pkt_pflags & PKT_F_OPT_EXP_ACTION) == 0) {
+		return ENOENT;
+	}
+	if (pea == NULL) {
+		return EINVAL;
+	}
+	*pea = po->__po_expiry_action;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_set_expiry_action(const uint64_t ph, packet_expiry_action_t pea)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+#ifdef KERNEL
+	struct __packet_opt *po = PKT_ADDR(ph)->pkt_com_opt;
+#else /* !KERNEL */
+	struct __packet_opt *po = &PKT_ADDR(ph)->pkt_com_opt;
+#endif /* !KERNEL */
+	if (pea != PACKET_EXPIRY_ACTION_NONE) {
+		po->__po_expiry_action = (uint8_t)pea;
+		PKT_ADDR(ph)->pkt_pflags |= PKT_F_OPT_EXP_ACTION;
+	} else {
+		po->__po_expiry_action = 0;
+		PKT_ADDR(ph)->pkt_pflags &= ~PKT_F_OPT_EXP_ACTION;
+	}
+	return 0;
+}
+#endif
+
 __attribute__((always_inline))
 static inline errno_t
 __packet_opt_get_token(const struct __packet_opt *po, void *token,
@@ -358,7 +418,11 @@ __packet_opt_get_token(const struct __packet_opt *po, void *token,
 	uint16_t tlen = po->__po_token_len;
 	uint8_t ttype;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	if (token == NULL || len == NULL || type == NULL || tlen > *len) {
+#else
 	if (token == NULL || len == NULL || type == NULL || tlen > *len || po->__po_token_type > UINT8_MAX) {
+#endif
 		return EINVAL;
 	}
 	ttype = (uint8_t)po->__po_token_type;
@@ -544,6 +608,56 @@ __packet_get_vlan_priority(const uint16_t vlan_tag)
 	return EVL_PRIOFTAG(vlan_tag);
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_app_metadata(const uint64_t ph,
+    packet_app_metadata_type_t *app_type, uint8_t *app_metadata)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	if (app_type == NULL || app_metadata == NULL) {
+		return EINVAL;
+	}
+	if ((PKT_ADDR(ph)->pkt_pflags & PKT_F_OPT_APP_METADATA) == 0) {
+		return ENOENT;
+	}
+#ifdef KERNEL
+	struct __packet_opt *po = PKT_ADDR(ph)->pkt_com_opt;
+#else /* !KERNEL */
+	struct __packet_opt *po = &PKT_ADDR(ph)->pkt_com_opt;
+#endif /* !KERNEL */
+	if (po->__po_app_type == PACKET_APP_METADATA_TYPE_UNSPECIFIED) {
+		return ENOENT;
+	}
+	*app_type = po->__po_app_type;
+	*app_metadata = po->__po_app_metadata;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_set_app_metadata(const uint64_t ph,
+    const packet_app_metadata_type_t app_type, const uint8_t app_metadata)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+#ifdef KERNEL
+	struct __packet_opt *po = PKT_ADDR(ph)->pkt_com_opt;
+#else /* !KERNEL */
+	struct __packet_opt *po = &PKT_ADDR(ph)->pkt_com_opt;
+#endif /* !KERNEL */
+	if (app_type < PACKET_APP_METADATA_TYPE_MIN ||
+	    app_type > PACKET_APP_METADATA_TYPE_MAX) {
+		po->__po_app_type = PACKET_APP_METADATA_TYPE_UNSPECIFIED;
+		PKT_ADDR(ph)->pkt_pflags &= ~PKT_F_OPT_APP_METADATA;
+		return EINVAL;
+	}
+	po->__po_app_type = app_type;
+	po->__po_app_metadata = app_metadata;
+	PKT_ADDR(ph)->pkt_pflags |= PKT_F_OPT_APP_METADATA;
+	return 0;
+}
+#endif
+
 #ifdef KERNEL
 __attribute__((always_inline))
 static inline void
@@ -669,15 +783,42 @@ __packet_get_service_class(const uint64_t ph)
 }
 
 __attribute__((always_inline))
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+static inline errno_t
+#else
 static inline void
+#endif
 __packet_set_comp_gencnt(const uint64_t ph, const uint32_t gencnt)
 {
 	_CASSERT(sizeof(PKT_ADDR(ph)->pkt_comp_gencnt == sizeof(uint32_t)));
 	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
 
 	PKT_ADDR(ph)->pkt_comp_gencnt = gencnt;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	return 0;
+#endif
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+static inline errno_t
+__packet_get_comp_gencnt(const uint64_t ph, uint32_t *pgencnt)
+{
+	_CASSERT(sizeof(PKT_ADDR(ph)->pkt_comp_gencnt == sizeof(uint32_t)));
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+
+	if (pgencnt == NULL) {
+		return EINVAL;
+	}
+
+	if (PKT_ADDR(ph)->pkt_comp_gencnt == 0) {
+		return ENOENT;
+	}
+
+	*pgencnt = PKT_ADDR(ph)->pkt_comp_gencnt;
+	return 0;
+}
+#else
 __attribute__((always_inline))
 static inline uint32_t
 __packet_get_comp_gencnt(const uint64_t ph)
@@ -687,6 +828,7 @@ __packet_get_comp_gencnt(const uint64_t ph)
 
 	return PKT_ADDR(ph)->pkt_comp_gencnt;
 }
+#endif
 
 
 __attribute__((always_inline))
@@ -752,7 +894,11 @@ __packet_set_inet_checksum(const uint64_t ph, const packet_csum_flags_t flags,
 {
 	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	PKT_ADDR(ph)->pkt_csum_flags = flags & (~PACKET_CSUM_TSO_FLAGS)
+#else
 	PKT_ADDR(ph)->pkt_csum_flags = flags;
+#endif
 
 	if (tx) {
 		PKT_ADDR(ph)->pkt_csum_tx_start_off = start;
@@ -786,7 +932,11 @@ __packet_get_inet_checksum(const uint64_t ph, uint16_t *start,
 			*stuff_val = PKT_ADDR(ph)->pkt_csum_rx_value;
 		}
 	}
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	return PKT_ADDR(ph)->pkt_csum_flags & (~PACKET_CSUM_TSO_FLAGS)
+#else
 	return PKT_ADDR(ph)->pkt_csum_flags;
+#endif
 }
 
 __attribute__((always_inline))
@@ -915,6 +1065,7 @@ __packet_add_buflet(const uint64_t ph, const void *bprev0, const void *bnew0)
 
 	VERIFY(PKT_ADDR(ph) && bnew && (bnew != bprev));
 	VERIFY(PP_HAS_BUFFER_ON_DEMAND(PKT_ADDR(ph)->pkt_qum.qum_pp));
+	VERIFY(bnew->buf_ctl != NULL);
 #else /* !KERNEL */
 	buflet_t bprev = __DECONST(buflet_t, bprev0);
 	buflet_t bnew = __DECONST(buflet_t, bnew0);
@@ -1024,6 +1175,56 @@ __packet_get_segment_count(const uint64_t ph)
 	return PKT_ADDR(ph)->pkt_seg_cnt;
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+__attribute__((always_inline))
+static inline void
+__packet_set_segment_count(const uint64_t ph, uint8_t segcount)
+{
+	_CASSERT(sizeof(PKT_ADDR(ph)->pkt_seg_cnt == sizeof(uint8_t)));
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+
+	PKT_ADDR(ph)->pkt_seg_cnt = segcount;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_protocol_segment_size(const uint64_t ph, uint16_t *proto_seg_sz)
+{
+	_CASSERT(sizeof(PKT_ADDR(ph)->pkt_proto_seg_sz == sizeof(uint16_t)));
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	*proto_seg_sz =  PKT_ADDR(ph)->pkt_proto_seg_sz;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_set_protocol_segment_size(const uint64_t ph, uint16_t proto_seg_sz)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	PKT_ADDR(ph)->pkt_proto_seg_sz = proto_seg_sz;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline void
+__packet_get_tso_flags(const uint64_t ph, packet_tso_flags_t *flags)
+{
+	_CASSERT(sizeof(PKT_ADDR(ph)->pkt_proto_seg_sz == sizeof(uint16_t)));
+
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	*flags = PKT_ADDR(ph)->pkt_csum_flags & (PACKET_CSUM_TSO_FLAGS);
+}
+
+__attribute__((always_inline))
+static inline void
+__packet_set_tso_flags(const uint64_t ph, packet_tso_flags_t flags)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+
+	PKT_ADDR(ph)->pkt_csum_flags |= flags & (PACKET_CSUM_TSO_FLAGS);
+}
+#endif
+
 __attribute__((always_inline))
 static inline uint16_t
 __buflet_get_data_limit(const void *buf)
@@ -1040,7 +1241,12 @@ __buflet_set_data_limit(const void *buf, const uint16_t dlim)
 	ASSERT(BLT_ADDR(buf)->buf_ctl->bc_flags & SKMEM_BUFCTL_SHAREOK);
 
 	/* full bounds checking will be performed during finalize */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	if (__probable((uint32_t)dlim + BLT_ADDR(buf)->buf_boff <=
+	    BLT_ADDR(buf)->buf_objlim)) {
+#else
 	if (__probable((uint32_t)dlim <= BLT_ADDR(buf)->buf_objlim)) {
+#endif
 		_CASSERT(sizeof(BLT_ADDR(buf)->buf_dlim) == sizeof(uint16_t));
 		/* deconst */
 		*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_dlim = dlim;
@@ -1106,7 +1312,11 @@ __packet_finalize(const uint64_t ph)
 		ASSERT(bcur != NULL);
 		ASSERT(BLT_ADDR(bcur)->buf_addr != 0);
 #else  /* !KERNEL */
-		if (__improbable(bcur == NULL)) {
+		if (__improbable(bcur == NULL 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+			|| BLT_ADDR(bcur)->buf_grolen != 0)
+#endif
+		) {
 			err = ERANGE;
 			break;
 		}
@@ -1140,9 +1350,18 @@ __packet_finalize(const uint64_t ph)
 
 	switch (SK_PTR_TYPE(ph)) {
 	case NEXUS_META_TYPE_PACKET:
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+		if (__improbable(bdoff0 > UINT8_MAX)) {
+			err = ERANGE;
+			goto done;
+		}
+		/* internalize headroom value from offset */
+		PKT_ADDR(ph)->pkt_headroom = (uint8_t)bdoff0;
+#endif
 		/* validate header offsets in packet */
 		switch (SK_PTR_SUBTYPE(ph)) {
 		case NEXUS_META_SUBTYPE_RAW:
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_0
 			/* ensure that L2 == bdoff && L2 < bdlim */
 			if (__improbable((PKT_ADDR(ph)->pkt_headroom !=
 			    bdoff0) || (PKT_ADDR(ph)->pkt_headroom >=
@@ -1168,7 +1387,9 @@ __packet_finalize(const uint64_t ph)
 			 * and L3 offset should always be 0
 			 */
 			if (__improbable((PKT_ADDR(ph)->pkt_headroom != 0) ||
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_0
 			    (bdoff0 != 0) ||
+#endif
 			    (PKT_ADDR(ph)->pkt_l2_len != 0))) {
 				err = ERANGE;
 				goto done;
@@ -1480,6 +1701,66 @@ __packet_set_tx_completion_status(const uint64_t ph, kern_return_t status)
 	PKT_ADDR(ph)->pkt_tx_compl_status = (uint32_t)status;
 	return 0;
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+__attribute__((always_inline))
+static inline errno_t
+__packet_set_tx_nx_port(const uint64_t ph, nexus_port_t nx_port,
+    uint16_t vpna_gencnt)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	PKT_ADDR(ph)->pkt_nx_port = nx_port;
+	PKT_ADDR(ph)->pkt_vpna_gencnt = vpna_gencnt;
+	PKT_ADDR(ph)->pkt_pflags |= PKT_F_TX_PORT_DATA;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_tx_nx_port(const uint64_t ph, nexus_port_t *nx_port,
+    uint16_t *vpna_gencnt)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	if ((PKT_ADDR(ph)->pkt_pflags & PKT_F_TX_PORT_DATA) == 0) {
+		return ENOTSUP;
+	}
+
+	*nx_port = PKT_ADDR(ph)->pkt_nx_port;
+	*vpna_gencnt = PKT_ADDR(ph)->pkt_vpna_gencnt;
+	return 0;
+}
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_tx_nx_port_id(const uint64_t ph, uint32_t *nx_port_id)
+{
+	errno_t err;
+	nexus_port_t nx_port;
+	uint16_t vpna_gencnt;
+
+	_CASSERT(sizeof(nx_port) == sizeof(uint16_t));
+
+	err = __packet_get_tx_nx_port(ph, &nx_port, &vpna_gencnt);
+	if (err == 0) {
+		*nx_port_id = PKT_COMPOSE_NX_PORT_ID(nx_port, vpna_gencnt);
+	}
+	return err;
+}
+
+
+__attribute__((always_inline))
+static inline errno_t
+__packet_get_flowid(const uint64_t ph, packet_flowid_t *pflowid)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	if ((PKT_ADDR(ph)->pkt_pflags & PKT_F_FLOW_ID) == 0) {
+		return ENOENT;
+	}
+	*pflowid = PKT_ADDR(ph)->pkt_flow_token;
+	return 0;
+}
+#endif
+
 #endif /* KERNEL */
 
 extern uint32_t os_cpu_in_cksum(const void *, uint32_t, uint32_t);
@@ -1547,6 +1828,15 @@ __attribute__((always_inline))
 static inline void *
 __buflet_get_data_address(const void *buf)
 {
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#if (defined(KERNEL) && (DEBUG || DEVELOPMENT))
+	ASSERT(BLT_ADDR(buf)->buf_addr ==
+	    (mach_vm_address_t)BLT_ADDR(buf)->buf_objaddr +
+	    BLT_ADDR(buf)->buf_boff);
+#endif /* KERNEL && (DEBUG || DEVELOPMENT) */
+
+#endif
 	return (void *)(BLT_ADDR(buf)->buf_addr);
 }
 
@@ -1566,6 +1856,16 @@ __buflet_set_data_address(const void *buf, const void *addr)
 		/* deconst */
 		*(mach_vm_address_t *)(uintptr_t)&BLT_ADDR(buf)->buf_addr =
 		    (mach_vm_address_t)addr;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+		/* compute the offset from objaddr for the case of shared buffer */
+		_CASSERT(sizeof(BLT_ADDR(buf)->buf_boff) == sizeof(uint16_t));
+		*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_boff =
+		    (uint16_t)((mach_vm_address_t)addr -
+		    (mach_vm_address_t)BLT_ADDR(buf)->buf_objaddr);
+
+#endif
 		return 0;
 	}
 	return ERANGE;
@@ -1584,7 +1884,12 @@ __buflet_set_data_offset(const void *buf, const uint16_t doff)
 	 */
 	ASSERT(BLT_ADDR(buf)->buf_dlim != 0);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	if (__probable(doff + BLT_ADDR(buf)->buf_boff <=
+	    BLT_ADDR(buf)->buf_objlim)) {
+#else
 	if (__probable((uint32_t)doff <= BLT_ADDR(buf)->buf_objlim)) {
+#endif
 		BLT_ADDR(buf)->buf_doff = doff;
 		return 0;
 	}
@@ -1617,6 +1922,97 @@ __buflet_set_data_length(const void *buf, const uint16_t dlen)
 	return 0;
 #endif /* KERNEL */
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#ifdef KERNEL
+__attribute__((always_inline))
+static inline int
+__buflet_set_buffer_offset(const void *buf, const uint16_t off)
+{
+	ASSERT(BLT_ADDR(buf)->buf_objlim != 0);
+
+	if (__probable(off <= BLT_ADDR(buf)->buf_objlim)) {
+		_CASSERT(sizeof(BLT_ADDR(buf)->buf_boff) == sizeof(uint16_t));
+		*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_boff = off;
+
+		/* adjust dlim and buf_addr */
+		if (BLT_ADDR(buf)->buf_dlim + off >= BLT_ADDR(buf)->buf_objlim) {
+			_CASSERT(sizeof(BLT_ADDR(buf)->buf_dlim) == sizeof(uint16_t));
+			*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_dlim =
+			    (uint16_t)BLT_ADDR(buf)->buf_objlim - off;
+		}
+		*(mach_vm_address_t *)(uintptr_t)&BLT_ADDR(buf)->buf_addr =
+		    (mach_vm_address_t)BLT_ADDR(buf)->buf_objaddr + off;
+		return 0;
+	}
+	return ERANGE;
+}
+#endif /* KERNEL */
+
+__attribute__((always_inline))
+static inline uint16_t
+__buflet_get_buffer_offset(const void *buf)
+{
+#if (defined(KERNEL) && (DEBUG || DEVELOPMENT))
+	ASSERT(BLT_ADDR(buf)->buf_addr ==
+	    (mach_vm_address_t)BLT_ADDR(buf)->buf_objaddr +
+	    BLT_ADDR(buf)->buf_boff);
+#endif /* KERNEL && (DEBUG || DEVELOPMENT) */
+	return BLT_ADDR(buf)->buf_boff;
+}
+
+#ifdef KERNEL
+__attribute__((always_inline))
+static inline int
+__buflet_set_gro_len(const void *buf, const uint16_t len)
+{
+	ASSERT(BLT_ADDR(buf)->buf_dlim != 0);
+
+	if (__probable(len <= BLT_ADDR(buf)->buf_dlim)) {
+		/* deconst */
+		_CASSERT(sizeof(BLT_ADDR(buf)->buf_grolen) == sizeof(uint16_t));
+		*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_grolen = len;
+		return 0;
+	}
+	return ERANGE;
+}
+#endif /* KERNEL */
+
+__attribute__((always_inline))
+static inline uint16_t
+__buflet_get_gro_len(const void *buf)
+{
+	return BLT_ADDR(buf)->buf_grolen;
+}
+
+__attribute__((always_inline))
+static inline void *
+__buflet_get_next_buf(const void *buflet, const void *prev_buf)
+{
+	uint16_t gro_len, dlen;
+	mach_vm_address_t next_buf, baddr;
+
+	ASSERT(BLT_ADDR(buflet)->buf_dlen != 0);
+	ASSERT(BLT_ADDR(buflet)->buf_grolen != 0);
+
+	gro_len = BLT_ADDR(buflet)->buf_grolen;
+	dlen = BLT_ADDR(buflet)->buf_dlen;
+	baddr = BLT_ADDR(buflet)->buf_addr;
+	if (prev_buf != NULL) {
+		ASSERT((mach_vm_address_t)prev_buf >= BLT_ADDR(buflet)->buf_addr);
+		next_buf = (mach_vm_address_t)prev_buf + gro_len;
+	} else {
+		next_buf = BLT_ADDR(buflet)->buf_addr;
+	}
+
+	if (__probable(next_buf < baddr + dlen)) {
+		ASSERT(next_buf + gro_len <= baddr + dlen);
+		return (void *)next_buf;
+	}
+
+	return NULL;
+}
+#endif
 
 __attribute__((always_inline))
 static inline uint16_t
@@ -1708,6 +2104,22 @@ __packet_trace_event(const uint64_t ph, uint32_t event)
 
 #ifdef KERNEL
 __attribute__((always_inline))
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+static inline packet_trace_tag_t
+__packet_get_trace_tag(const uint64_t ph)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	return PKT_ADDR(ph)->pkt_trace_tag;
+}
+
+__attribute__((always_inline))
+static inline void
+__packet_set_trace_tag(const uint64_t ph, packet_trace_tag_t tag)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	PKT_ADDR(ph)->pkt_trace_tag = tag;
+}
+#endif
 static inline void
 __packet_perform_tx_completion_callbacks(const kern_packet_t ph, ifnet_t ifp)
 {
@@ -1737,6 +2149,25 @@ __packet_perform_tx_completion_callbacks(const kern_packet_t ph, ifnet_t ifp)
 	}
 	kpkt->pkt_pflags &= ~PKT_F_TX_COMPL_TS_REQ;
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+static inline void *
+__packet_get_priv(const kern_packet_t ph)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	return PKT_ADDR(ph)->pkt_priv;
+}
+
+static inline void
+__packet_set_priv(const uint64_t ph, void *priv)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	PKT_ADDR(ph)->pkt_priv = priv;
+}
+
+#endif
+
 #endif /* KERNEL */
 
 #endif /* PRIVATE || BSD_KERNEL_PRIVATE */

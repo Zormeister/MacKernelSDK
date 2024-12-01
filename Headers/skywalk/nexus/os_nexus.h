@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_OS_NEXUS_H_
 #define _SKYWALK_OS_NEXUS_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/cdefs.h>
@@ -40,6 +46,8 @@
 
 struct ifnet_interface_advisory;
 
+struct ifnet_traffic_descriptor_common;
+struct ifnet_traffic_rule_action;
 
 /*
  * Nexus terminology and overview.  The relationship between the objects are
@@ -86,7 +94,11 @@ typedef uint8_t nexus_name_t[64];
 /*
  * Nexus instance port.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+typedef uint16_t nexus_port_t;
+#else
 typedef uint32_t nexus_port_t;
+#endif
 
 /*
  * User pipe Nexus has at most two ports: one client and server.
@@ -154,6 +166,9 @@ typedef enum {
 	 * The os channel will appear as defunct to the active peer.
 	 */
 	NEXUS_ATTR_REJECT_ON_CLOSE,
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	NEXUS_ATTR_LARGE_BUF_SIZE,     /* (g/s) size of large buffer (bytes) */
+#endif
 } nexus_attr_type_t;
 
 /*
@@ -517,6 +532,10 @@ typedef errno_t (*nxprov_sync_packets_fn_t)(kern_nexus_provider_t nexus_prov,
 typedef enum {
 	/* periodic interface advisory notifications */
 	KERN_NEXUS_CAPAB_INTERFACE_ADVISORY = 1,
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	/* extends queue set functionality: e.g. notify steering info */
+	KERN_NEXUS_CAPAB_QSET_EXTENSIONS,
+#endif
 } kern_nexus_capab_t;
 
 typedef errno_t (*nxprov_capab_config_fn_t)(kern_nexus_provider_t nexus_prov,
@@ -542,6 +561,25 @@ struct kern_nexus_capab_interface_advisory {
 	const kern_nexus_capab_interface_advisory_notify_fn_t kncia_notify;
 	kern_nexus_capab_interface_advisory_config_fn_t kncia_config;
 };
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+/*
+ * struct kern_nexus_capab_qset_extensions
+ * @abstract qset extensions configuration callback.
+ * @param cqe_version Version of the capability structure.
+ * @param cqe_notify_steering_info callback provided by nexus provider.
+ * @param cqe_prov_ctx provider context for the above callback.
+ */
+#define KERN_NEXUS_CAPAB_QSET_EXTENSIONS_VERSION_1 1
+typedef errno_t (*kern_nexus_capab_qsext_notify_steering_info_fn_t)(
+	void *provider_context, void *qset_context,
+	struct ifnet_traffic_descriptor_common *td, bool add);
+struct kern_nexus_capab_qset_extensions {
+	uint32_t cqe_version;
+	void *cqe_prov_ctx;
+	kern_nexus_capab_qsext_notify_steering_info_fn_t cqe_notify_steering_info;
+};
+#endif
 
 /*
  * Nexus provider init (version 1)
@@ -840,6 +878,15 @@ extern errno_t kern_nexus_netif_llink_add(struct kern_nexus *,
 
 extern errno_t kern_nexus_netif_llink_remove(struct kern_nexus *,
     kern_nexus_netif_llink_id_t);
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_netif_qset_tx_queue_len(kern_netif_qset_t,
+    uint32_t, uint32_t *, uint32_t *);
+
+extern void kern_netif_set_qset_combined(kern_netif_qset_t qset);
+
+extern void kern_netif_set_qset_separate(kern_netif_qset_t qset);
+#endif
 
 /*
  * Misc.

@@ -34,6 +34,12 @@
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/IOMultiMemoryDescriptor.h>
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 typedef uint32_t        IOSKSize;
 typedef uint32_t        IOSKIndex;
 typedef uint32_t        IOSKCount;
@@ -49,6 +55,9 @@ typedef struct
     boolean_t inhibitCache;         /* cache-inhibit */
     boolean_t physContig;           /* physically contiguous */
     boolean_t pureData;             /* data only, no pointers */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+    boolean_t threadSafe;           /* thread safe */
+#endif
 } IOSKMemoryBufferSpec;
 
 typedef struct
@@ -84,8 +93,13 @@ IOSKMemoryBufferRef IOSKMemoryBufferCreate( mach_vm_size_t capacity,
     const IOSKMemoryBufferSpec * spec,
     mach_vm_address_t * kvaddr );
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+IOSKMemoryArrayRef  IOSKMemoryArrayCreate( const IOSKMemoryRef refs[__counted_by(count)],
+    uint32_t count );
+#else
 IOSKMemoryArrayRef  IOSKMemoryArrayCreate( const IOSKMemoryRef refs[],
     uint32_t count );
+#endif
 
 void                IOSKMemoryDestroy( IOSK_CONSUMED IOSKMemoryRef reference );
 

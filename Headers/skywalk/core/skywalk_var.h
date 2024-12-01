@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -100,6 +100,9 @@
 #include <skywalk/os_channel_private.h>
 #include <skywalk/namespace/netns.h>
 #include <skywalk/namespace/protons.h>
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#include <skywalk/namespace/flowidns.h>
+#endif
 #include <vm/vm_kern.h>
 #include <san/kasan.h>
 

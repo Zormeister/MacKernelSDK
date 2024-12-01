@@ -118,13 +118,16 @@
 	X(uint32_t, use_ledbat, 0)                                      \
 	X(uint32_t, rledbat, 1)                                         \
 	X(uint32_t, use_min_curr_rtt, 1)                                \
-	X(uint32_t, fin_timeout, 30)
+	X(uint32_t, fin_timeout, 30)									\
+	X(uint32_t, accurate_ecn, 0)                                    \
+	X(int32_t, tso, 1)
 
 #define SKMEM_SYSCTL_KERN_IPC_LIST                                      \
 	X(uint32_t, throttle_best_effort, 0)
 
 #define SKMEM_SYSCTL_TCP_HAS_DEFAULT_VALUES 1
 #define SKMEM_SYSCTL_TCP_HAS_INIT_TIME  1
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_13_0
 #define SKMEM_SYSCTL_TCP_HAS_INIT_RTT_FROM_CACHE 1
 #define SKMEM_SYSCTL_TCP_HAS_AUTOTUNEREORDER 1
 #define SKMEM_SYSCTL_TCP_HAS_BETTER_LR 1
@@ -133,9 +136,15 @@
 #define SKMEM_SYSCTL_TCP_HAS_ACK_STRATEGY 1
 #define SKMEM_SYSCTL_TCP_HAS_FLOW_CONTROL_RESPONSE 1
 #define SKMEM_SYSCTL_TCP_HAS_RANDOMIZED_TIMESTAMPS 1
+#endif
 #define SKMEM_SYSCTL_TCP_HAS_LEDBAT_PLUS_PLUS 1
 #define SKMEM_SYSCTL_TCP_HAS_RLEDBAT 1
 #define SKMEM_SYSCTL_TCP_HAS_FIN_TIMEOUT 1
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define SKMEM_SYSCTL_TCP_HAS_ACC_ECN 1
+#define SKMEM_SYSCTL_TCP_HAS_ACC_ECN_OPTION 1
+#endif
+
 /*
  * When adding a new type above, be sure to add a corresponding
  * printf format below. Clients use NW_SYSCTL_PRI_##type

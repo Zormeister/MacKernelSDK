@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Apple Inc. All rights reserved.
+ * Copyright (c) 2016-2022 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -112,9 +112,18 @@ typedef enum {
 	SKMEM_REGION_GUARD_HEAD = 0,    /* leading guard page(s) */
 	SKMEM_REGION_SCHEMA,            /* channel layout */
 	SKMEM_REGION_RING,              /* rings */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	SKMEM_REGION_BUF_DEF,           /* Default rx/tx buffer */
+	SKMEM_REGION_BUF_LARGE,         /* Large rx/tx buffer */
+	SKMEM_REGION_RXBUF_DEF,         /* Default rx only buffers */
+	SKMEM_REGION_RXBUF_LARGE,       /* Large rx only buffers */
+	SKMEM_REGION_TXBUF_DEF,         /* Default tx only buffers */
+	SKMEM_REGION_TXBUF_LARGE,       /* Large tx only buffers */
+#else
 	SKMEM_REGION_BUF,               /* rx/tx buffer */
 	SKMEM_REGION_RXBUF,             /* rx only buffers */
 	SKMEM_REGION_TXBUF,             /* tx only buffers */
+#endif
 	SKMEM_REGION_UMD,               /* userland metadata */
 	SKMEM_REGION_TXAUSD,            /* tx/alloc/event user slot descriptors */
 	SKMEM_REGION_RXFUSD,            /* rx/free user slot descriptors */
@@ -142,7 +151,11 @@ typedef enum {
 	SKMEM_REGIONS                   /* max */
 } skmem_region_id_t;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define SKMEM_PP_REGIONS 14
+#else
 #define SKMEM_PP_REGIONS 11
+#endif
 extern const skmem_region_id_t skmem_pp_region_ids[SKMEM_PP_REGIONS];
 
 /*
@@ -186,6 +199,10 @@ typedef void (*sksegment_dtor_fn_t)(struct sksegment *,
 /*
  * Region.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define SKR_MAX_CACHES    3 /* max # of caches allowed on a region */
+#endif
+
 struct skmem_region {
 	decl_lck_mtx_data(, skr_lock);          /* region lock */
 
@@ -216,7 +233,11 @@ struct skmem_region {
 	IOSKRegionRef           skr_reg;        /* backing IOSKRegion */
 	struct zone             *skr_zreg;      /* backing zone (pseudo mode) */
 	void                    *skr_private;   /* opaque arg to callbacks */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	struct skmem_cache      *skr_cache[SKR_MAX_CACHES]; /* client slab/cache layer */
+#else
 	struct skmem_cache      *skr_cache;     /* client slab/cache layer */
+#endif
 
 	/*
 	 * Objects.
@@ -289,11 +310,24 @@ struct skmem_region {
 #define SKR_MODE_SLAB           (1U << 30) /* backend for slab layer */
 #define SKR_MODE_MIRRORED       (1U << 31) /* controlled by another region */
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#define SKR_MODE_THREADSAFE     0x8000  /* thread safe */
+
 #define SKR_MODE_BITS           \
 	"\020\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
 	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
 	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
 	"\015GUARD\016PUREDATA\017PSEUDO\037SLAB\040MIRRORED"
+	"\015GUARD\016PUREDATA\017PSEUDO\020THREADSAFE\037SLAB" \
+	"\040MIRRORED"
+#else
+#define SKR_MODE_BITS           \
+	"\020\01NOREDIRECT\02MMAPOK\03KREADONLY\04UREADONLY"    \
+	"\05PERSISTENT\06MONOLITHIC\07NOMAGAZINES\10NOCACHE"    \
+	"\11SEGPHYSCONTIG\012SHAREOK\013IODIR_IN\014IODIR_OUT"  \
+	"\015GUARD\016PUREDATA\017PSEUDO\037SLAB\040MIRRORED"
+#endif
 
 /* valid values for skmem_region_create() */
 #define SKMEM_REGION_CR_NOREDIRECT      0x1     /* unaffected by defunct */
@@ -327,8 +361,13 @@ extern struct skmem_region *skmem_region_create(const char *,
     struct skmem_region_params *, sksegment_ctor_fn_t, sksegment_dtor_fn_t,
     void *);
 extern void skmem_region_mirror(struct skmem_region *, struct skmem_region *);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern void skmem_region_slab_config(struct skmem_region *,
+    struct skmem_cache *, bool);
+#else
 extern void skmem_region_slab_config(struct skmem_region *,
     struct skmem_cache *);
+#endif
 extern void *skmem_region_alloc(struct skmem_region *, void **,
     struct sksegment **, struct sksegment **, uint32_t);
 extern void skmem_region_free(struct skmem_region *, void *, void *);

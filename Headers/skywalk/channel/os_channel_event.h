@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Apple Inc. All rights reserved.
+ * Copyright (c) 2019-2021 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -44,11 +44,21 @@ typedef enum {
 	CHANNEL_EVENT_MAX    = CHANNEL_EVENT_PACKET_TRANSMIT_STATUS,
 } os_channel_event_type_t;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+typedef enum : int32_t {
+    CHANNEL_EVENT_SUCCESS = 0,
+    CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_FLUSH = 1,
+    CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_RETRY_FAILED = 2,
+    CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_TIMEOUT_EXPIRED_DROPPED = 3,
+    CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_TIMEOUT_EXPIRED_NODROP = 4,
+} os_channel_event_error_t;
+#else
 typedef enum {
 	CHANNEL_EVENT_SUCCESS = 0,
 	CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_FLUSH = 1,
 	CHANNEL_EVENT_PKT_TRANSMIT_STATUS_ERR_RETRY_FAILED = 2,
 } os_channel_event_error_t;
+#endif
 
 typedef struct os_channel_event_packet_transmit_status {
 	packet_id_t    packet_id;
@@ -68,6 +78,7 @@ struct os_channel_event_data {
 	uint8_t                    *event_data;
 };
 
+#if KERNEL
 #if !defined(_POSIX_C_SOURCE) || defined(_DARWIN_C_SOURCE)
 extern int
 os_channel_event_get_next_event(const os_channel_event_handle_t event_handle,
@@ -105,13 +116,26 @@ struct __kern_channel_event {
 
 #if defined(BSD_KERNEL_PRIVATE)
 __BEGIN_DECLS
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern errno_t kern_channel_event_transmit_status_with_packet(
+    const kern_packet_t, const ifnet_t);
+#else
 extern errno_t kern_channel_event_transmit_status(const kern_packet_t,
     const ifnet_t);
+#endif
 extern void kern_channel_event_notify(struct __kern_channel_ring *);
 extern int kern_channel_event_sync(struct __kern_channel_ring *, struct proc *,
     uint32_t);
 __END_DECLS
 #endif /* BSD_KERNEL_PRIVATE */
 
-#endif /* PRIVATE */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#ifdef KERNEL
+__BEGIN_DECLS
+extern errno_t kern_channel_event_transmit_status(const ifnet_t,
+    os_channel_event_packet_transmit_status_t *, uint32_t);
+__END_DECLS
+#endif /* KERNEL */
+#endif
+
 #endif /* !_SKYWALK_OS_CHANNEL_EVENT_H_ */

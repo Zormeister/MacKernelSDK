@@ -29,6 +29,12 @@
 #ifndef _SKYWALK_NEXUS_FLOWSWITCH_FSWVAR_H_
 #define _SKYWALK_NEXUS_FLOWSWITCH_FSWVAR_H_
 
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 #include <skywalk/os_skywalk_private.h>
 #include <skywalk/nexus/flowswitch/nx_flowswitch.h>
 #include <skywalk/nexus/flowswitch/flow/flow_var.h>
@@ -126,6 +132,14 @@ extern int fsw_vp_na_create(struct kern_nexus *nx, struct chreq *chr,
 extern void fsw_vp_channel_error_stats_fold(struct fsw_stats *fs,
     struct __nx_stats_channel_errors *es);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+extern errno_t fsw_vp_na_channel_event(struct nx_flowswitch *fsw,
+    uint32_t nx_port_id, struct __kern_channel_event *event,
+    uint16_t event_len);
+
+#endif
+
 // classq related
 extern void fsw_classq_setup(struct nx_flowswitch *fsw,
     struct nexus_adapter *hostna);
@@ -158,14 +172,32 @@ extern int fsw_dev_input_netem_dequeue(void *handle, pktsched_pkt_t *pkts,
 extern void fsw_snoop(struct nx_flowswitch *fsw, struct flow_entry *fe,
     bool input);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+extern void fsw_receive(struct nx_flowswitch *fsw, struct pktq *pktq);
+#endif
+
 extern void dp_flow_tx_process(struct nx_flowswitch *fsw,
     struct flow_entry *fe);
 extern void dp_flow_rx_process(struct nx_flowswitch *fsw,
     struct flow_entry *fe);
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#if (DEVELOPMENT || DEBUG)
+extern int fsw_rps_set_nthreads(struct nx_flowswitch* fsw, uint32_t n);
+#endif /* !DEVELOPMENT && !DEBUG */
+
+#endif
+
 extern uint32_t fsw_tx_batch;
 extern uint32_t fsw_rx_batch;
 extern uint32_t fsw_chain_enqueue;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+extern uint32_t fsw_use_dual_sized_pool;
+
+#endif
 
 // flow related
 extern struct flow_owner * fsw_flow_add(struct nx_flowswitch *fsw,
@@ -227,5 +259,11 @@ fsw_snoop_and_dequeue(struct flow_entry *fe, struct pktq *target, bool input)
 	}
 	KPKTQ_CONCAT(target, input ? &fe->fe_rx_pktq : &fe->fe_tx_pktq);
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define FSW_STATS_VAL(x)        STATS_VAL(&fsw->fsw_stats, x)
+#define FSW_STATS_INC(x)        STATS_INC(&fsw->fsw_stats, x)
+#define FSW_STATS_ADD(x, n)     STATS_ADD(&fsw->fsw_stats, x, n)
+#endif
 
 #endif /* _SKYWALK_NEXUS_FLOWSWITCH_FSWVAR_H_ */
