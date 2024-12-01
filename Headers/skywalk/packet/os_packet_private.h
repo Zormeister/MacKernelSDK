@@ -871,6 +871,9 @@ struct __user_packet {
 #define PKT_F_OPT_EXP_ACTION    0x0000200000000000ULL /* (U+K) */
 #define PKT_F_OPT_APP_METADATA  0x0000400000000000ULL /* (U+K) */
 #endif
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_1
+#define PKT_F_L4S               0x0000800000000000ULL /* (U+K) */
+#endif
 /*                              0x0008000000000000ULL */
 /*                              0x0010000000000000ULL */
 /*                              0x0020000000000000ULL */
@@ -905,10 +908,17 @@ struct __user_packet {
 /*
  * Flags exposed to user (and kernel).  See notes above.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_1
+#define PKT_F_USER_MASK                                                 \
+	(PKT_F_BACKGROUND | PKT_F_REALTIME | PKT_F_REXMT |              \
+	PKT_F_LAST_PKT | PKT_F_OPT_DATA | PKT_F_PROMISC |               \
+	PKT_F_TRUNCATED | PKT_F_WAKE_PKT | PKT_F_L4S)
+#else
 #define PKT_F_USER_MASK                                                 \
 	(PKT_F_BACKGROUND | PKT_F_REALTIME | PKT_F_REXMT |              \
 	PKT_F_LAST_PKT | PKT_F_OPT_DATA | PKT_F_PROMISC |               \
 	PKT_F_TRUNCATED | PKT_F_WAKE_PKT)
+#endif
 
 /*
  * Aliases for kernel-only flags.  See notes above.  The ones marked
