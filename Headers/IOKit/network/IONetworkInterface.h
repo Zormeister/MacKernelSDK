@@ -363,7 +363,15 @@ private:
     OSDictionary *          _dataDict;
     IOMbufQueue *           _inputPushQueue;
     void *                  _unused1;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_3
+
+    UInt32                  _hwAssists;
+
+#else
+
     UInt32                  _unused2;
+
+#endif
 
     struct ExpansionData {
         int                         unit;
