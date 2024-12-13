@@ -28,6 +28,13 @@
 extern "C" {
 #include <sys/kpi_mbuf.h>
 }
+
+#include <Availability.h>
+
+#ifndef __MAC_OS_X_VERSION_MIN_REQUIRED
+#error "Missing macOS target version"
+#endif
+
 // Forward declarations.
 //
 struct mbuf;
@@ -133,7 +140,12 @@ public:
     @result Returns the packet at the head of the queue. 
 */
 
+/* ZORMIESTER: Signature changed in macOS Monterey, 12.0.1 */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_12_0
     virtual const mbuf_t peek() const;
+#else
+    virtual mbuf_t peek() const;
+#endif
 
 /*! @function prepend
     @abstract Adds a chain of packets to the head of the queue.
