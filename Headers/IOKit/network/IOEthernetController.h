@@ -196,6 +196,15 @@ class APPLE_KEXT_DEPRECATE IOEthernetController : public IONetworkController
 
 protected:
 	struct IOECTSCallbackEntry;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	struct IOEthernetAVBPacketPoolEntry
+    {
+        IOEthernetAVBPacket *packet;
+        IOEthernetAVBPacketPoolEntry *next;
+        bool inUse;
+    };
+#endif
 	
     struct ExpansionData {
 		IOEthernetControllerAVBTimeSyncSupport fTimeSyncSupport;
@@ -237,6 +246,15 @@ protected:
 		uint64_t fTimeSyncCallbackTimeoutTime;
 		
 		bool fgPTPPresent;
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+		size_t fRealtimePoolSize;
+        IOEthernetAVBPacketPoolEntry *fRealtimePoolList;
+        IOEthernetAVBPacketPoolEntry *fRealtimePoolHead;
+        IOEthernetAVBPacketPoolEntry *fRealtimePoolTail;
+        IOLock *fRealtimePoolLock;
+#endif
+
 	};
 	
 	/*! @var reserved
@@ -765,6 +783,19 @@ public:
 		@result The allocated packet. May return NULL if the pool is out of packets.
 	 */
 	IOEthernetAVBPacket *allocateAVBPacket(bool fromRealtimePool);
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+	protected:
+    /*! @function createRealtimeAVBPacketPool
+        @abstract Create the realtime AVB packet pool.
+        @discussion Create the pool of packets to be used by allocateAVBPacket() when fromRealtimePool is true.
+        @param poolSize    The number of packets to allocate in the pool.
+        @result IOReturn indicating success or reason for failure.
+     */
+    IOReturn createRealtimeAVBPacketPool(size_t poolSize);
+
+#endif
 	
 	
 private:
