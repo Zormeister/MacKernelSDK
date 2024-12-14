@@ -800,6 +800,7 @@ public:
 	
 private:
 	static void allocatedAVBPacketCompletion(void *context, IOEthernetAVBPacket *packet);
+	/* ZORMEISTER: Update sig? IONetworkingFamily-175.1.1 */
 	void realtimePoolAVBPacketCompletion(IOEthernetAVBPacket *packet);
 	
 	
