@@ -101,6 +101,15 @@ private:
         uint32_t    supportedWakeFilters;   // bitmask of supported wake filters
         OSNumber *  disabledWakeFilters;    // OSNumber of disabled wake filters
         uint64_t    wompEnabledAssertionID;
+#ifdef __MAC_15_0
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_15_0
+
+        OSNumber *  linkActiveCount;        // monotonically increasing count for link active
+
+#endif
+
+#endif
 	};
     /*! @var reserved
         Reserved for future use.  (Internal use only)  */

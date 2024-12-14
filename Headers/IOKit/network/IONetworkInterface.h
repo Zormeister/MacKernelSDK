@@ -464,6 +464,16 @@ private:
     void            notifyDriver( uint32_t type, void * data );
     static void     handleNetworkInputEvent(thread_call_param_t param0, thread_call_param_t param1);
 
+#ifdef __MAC_15_0
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_15_0
+
+    void            fetchDriverOutputStats( uint32_t * outErrors, uint32_t * outPackets );
+
+#endif
+
+#endif
+
 public:
 
 /*! @function isPrimaryInterface
