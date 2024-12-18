@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022 Apple Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Apple Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
  *
@@ -252,6 +252,10 @@ struct kern_nexus {
 #define NX_DOM_PROV(_nx)        (NX_PROV(_nx)->nxprov_dom_prov)
 #define NX_DOM(_nx)             (NX_DOM_PROV(_nx)->nxdom_prov_dom)
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define NX_PROV_PARAMS(_nx)     (NX_PROV(_nx)->nxprov_params)
+#endif
+
 #define NX_REJECT_ACT(_nx)      (((_nx)->nx_flags & NXF_REJECT) != 0)
 
 /*
@@ -435,6 +439,9 @@ struct nxdom {
 #define NXDOM_MAX(_dom, var)    ((_dom)->nxdom_##var.nb_max)
 
 extern struct nexus_controller kernnxctl;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern struct nexus_controller usernxctl;
+#endif
 extern lck_grp_t nexus_lock_group;
 extern lck_grp_t nexus_mbq_lock_group;
 extern lck_grp_t nexus_pktq_lock_group;

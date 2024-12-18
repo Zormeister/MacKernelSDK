@@ -513,6 +513,10 @@ na_get_nrings(const struct nexus_adapter *na, enum txrx t)
 		return na->na_num_allocator_ring_pairs;
 	case NR_EV:
 		return na->na_num_event_rings;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		return na->na_num_large_buf_alloc_rings;
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */
@@ -538,6 +542,13 @@ na_set_nrings(struct nexus_adapter *na, enum txrx t, uint32_t v)
 	case NR_EV:
 		na->na_num_event_rings = v;
 		break;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		/* we only support one ring for now */
+		ASSERT(v <= 1);
+		na->na_num_large_buf_alloc_rings = v;
+		break;
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */
@@ -560,6 +571,10 @@ NAKR(struct nexus_adapter *na, enum txrx t)
 		return na->na_free_rings;
 	case NR_EV:
 		return na->na_event_rings;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	case NR_LBA:
+		return na->na_large_buf_alloc_rings;
+#endif
 	default:
 		VERIFY(0);
 		/* NOTREACHED */
@@ -716,6 +731,14 @@ extern boolean_t na_flowadv_clear(const struct kern_channel *,
 extern void na_flowadv_event(struct __kern_channel_ring *);
 extern void na_post_event(struct __kern_channel_ring *, boolean_t, boolean_t,
     boolean_t, uint32_t);
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+extern int na_flowadv_report_ce_event(const struct kern_channel *ch,
+    const flowadv_idx_t fe_idx, const flowadv_token_t flow_token,
+    uint32_t ce_cnt, uint32_t total_pkt_cnt);
+
+#endif
 
 extern void na_drain(struct nexus_adapter *, boolean_t);
 

@@ -346,6 +346,9 @@ typedef enum {
 	NXCFG_CMD_DETACH =      1,      /* detach an object from a nexus */
 	NXCFG_CMD_FLOW_ADD =    20,     /* bind namespace to a nexus port */
 	NXCFG_CMD_FLOW_DEL =    21,     /* unbind namespace from a nexus port */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	NXCFG_CMD_FLOW_CONFIG = 22,     /* configure a flow in nexus */
+#endif
 	NXCFG_CMD_NETEM =       30,     /* config packet scheduler */
 	NXCFG_CMD_GET_LLINK_INFO = 40,  /* collect llink info */
 } nxcfg_cmd_t;
@@ -562,12 +565,25 @@ extern const struct flow_key fk_mask_ipflow3;
 /* mask off userland-settable bits */
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define NXFLOWREQF_MASK \
+    (NXFLOWREQF_TRACK | NXFLOWREQF_QOS_MARKING | NXFLOWREQF_FILTER | \
+    NXFLOWREQF_CUSTOM_ETHER | NXFLOWREQF_IPV6_ULA | NXFLOWREQF_LISTENER | \
+    NXFLOWREQF_OVERRIDE_ADDRESS_SELECTION | NXFLOWREQF_USE_STABLE_ADDRESS | \
+    NXFLOWREQF_FLOWADV | NXFLOWREQF_LOW_LATENCY | NXFLOWREQF_NOWAKEFROMSLEEP | \
+    NXFLOWREQF_REUSEPORT | NXFLOWREQF_PARENT)
+
+#else
+
 #define NXFLOWREQF_MASK \
     (NXFLOWREQF_TRACK | NXFLOWREQF_QOS_MARKING | NXFLOWREQF_FILTER | \
     NXFLOWREQF_CUSTOM_ETHER | NXFLOWREQF_IPV6_ULA | NXFLOWREQF_LISTENER | \
     NXFLOWREQF_OVERRIDE_ADDRESS_SELECTION | NXFLOWREQF_USE_STABLE_ADDRESS | \
     NXFLOWREQF_FLOWADV | NXFLOWREQF_LOW_LATENCY | NXFLOWREQF_REUSEPORT | \
     NXFLOWREQF_PARENT)
+
+#endif
 
 #else
 

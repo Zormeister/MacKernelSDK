@@ -89,7 +89,21 @@ struct __kern_buflet_ext {
 	pid_t kbe_buf_pid;
 } __attribute((packed));
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define KBUF_CTOR(_kbuf, _baddr, _bidxreg, _bc, _pp, _large) do {               \
+	_CASSERT(sizeof ((_kbuf)->buf_addr) == sizeof (mach_vm_address_t));\
+	/* kernel variant (deconst) */                                  \
+	BUF_CTOR(_kbuf, _baddr, _bidxreg, (_large) ? PP_BUF_SIZE_LARGE(_pp) :\
+	    PP_BUF_SIZE_DEF(_pp), 0, 0, (_kbuf)->buf_nbft_addr,         \
+	    (_kbuf)->buf_nbft_idx, (_kbuf)->buf_flag);            \
+	*(struct skmem_bufctl **)(uintptr_t)&(_kbuf)->buf_ctl = (_bc);  \
+	/* this may be called to initialize unused buflets */           \
+	if (__probable((_bc) != NULL)) {                                \
+	        skmem_bufctl_use(_bc);                                  \
+	}                                                               \
+	/* no need to construct user variant as it is done in externalize */ \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define KBUF_CTOR(_kbuf, _baddr, _bidxreg, _bc, _pp, _large) do {               \
 	_CASSERT(sizeof ((_kbuf)->buf_addr) == sizeof (mach_vm_address_t));\
 	/* kernel variant (deconst) */                                  \
@@ -118,7 +132,25 @@ struct __kern_buflet_ext {
 } while (0)
 #endif
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define KBUF_EXT_CTOR(_kbuf, _ubuf, _baddr, _bidxreg, _bc,              \
+	    _bft_idx_reg, _pp, _large) do {                                     \
+	ASSERT(_bft_idx_reg != OBJ_IDX_NONE);                           \
+	_CASSERT(sizeof((_kbuf)->buf_flag) == sizeof(uint16_t));        \
+	/* we don't set buf_nbft_addr here as during construction it */ \
+	/* is used by skmem batch alloc logic                        */ \
+	*__DECONST(uint16_t *, &(_kbuf)->buf_flag) = BUFLET_FLAG_EXTERNAL;\
+	if (_large) {                                                   \
+	        *__DECONST(uint16_t *, &(_kbuf)->buf_flag) |=           \
+	            BUFLET_FLAG_LARGE_BUF;                              \
+	}                                                               \
+	BUF_NBFT_IDX(_kbuf, OBJ_IDX_NONE);                              \
+	BUF_BFT_IDX_REG(_kbuf, _bft_idx_reg);                           \
+	*__DECONST(struct __user_buflet **,                             \
+	&((struct __kern_buflet_ext *)(_kbuf))->kbe_buf_user) = (_ubuf);\
+	KBUF_CTOR(_kbuf, _baddr, _bidxreg, _bc, _pp, _large);           \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define KBUF_EXT_CTOR(_kbuf, _ubuf, _baddr, _bidxreg, _bc,              \
 	    _bft_idx_reg, _pp, _large, _attch_buf) do {                                     \
 	ASSERT(_bft_idx_reg != OBJ_IDX_NONE);                           \
@@ -164,7 +196,25 @@ struct __kern_buflet_ext {
 	BUF_INIT(_kbuf, 0, 0);                                          \
 } while (0)
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define KBUF_EXT_INIT(_kbuf, _pp) do {                                  \
+	ASSERT((_kbuf)->buf_ctl != NULL);                               \
+	ASSERT((_kbuf)->buf_flag & BUFLET_FLAG_EXTERNAL);               \
+	ASSERT((_kbuf)->buf_bft_idx_reg != OBJ_IDX_NONE);               \
+	BUF_BADDR(_kbuf, (_kbuf)->buf_ctl->bc_addr);                    \
+	BUF_NBFT_ADDR(_kbuf, 0);                                        \
+	BUF_NBFT_IDX(_kbuf, OBJ_IDX_NONE);                              \
+	*__DECONST(uint32_t *, &(_kbuf)->buf_dlim) =                    \
+	BUFLET_HAS_LARGE_BUF(_kbuf) ? PP_BUF_SIZE_LARGE((_pp)) :        \
+	PP_BUF_SIZE_DEF((_pp));                                         \
+	(_kbuf)->buf_dlen = 0;                                          \
+	(_kbuf)->buf_doff = 0;                                          \
+	((struct __kern_buflet_ext *)(_kbuf))->kbe_buf_pid = (pid_t)-1; \
+	((struct __kern_buflet_ext *)(_kbuf))->kbe_buf_upp_link.sle_next = NULL;\
+} while (0)
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define KBUF_EXT_INIT(_kbuf, _pp) do {                                  \
 	_CASSERT(sizeof((_kbuf)->buf_boff) == sizeof(uint16_t));        \
 	_CASSERT(sizeof((_kbuf)->buf_grolen) == sizeof(uint16_t));      \
@@ -226,7 +276,7 @@ struct __kern_buflet_ext {
 #endif
 
 /* initialize struct __user_buflet from struct __kern_buflet */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define UBUF_INIT(_kbuf, _ubuf) do {                                    \
 	BUF_CTOR(_ubuf, 0, (_kbuf)->buf_idx, (_kbuf)->buf_dlim,         \
 	    (_kbuf)->buf_dlen, (_kbuf)->buf_doff, (_kbuf)->buf_nbft_addr,\
@@ -243,7 +293,19 @@ struct __kern_buflet_ext {
 } while (0)
 #endif
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define KBUF_EXTERNALIZE(_kbuf, _ubuf, _pp) do {                       \
+	ASSERT((_kbuf)->buf_dlim == BUFLET_HAS_LARGE_BUF(_kbuf) ?         \
+	    PP_BUF_SIZE_LARGE((_pp)) : PP_BUF_SIZE_DEF((_pp)));        \
+	ASSERT((_kbuf)->buf_addr != 0);                                \
+	/* For now, user-facing pool does not support shared */        \
+	/* buffer, since otherwise the ubuf and kbuf buffer  */        \
+	/* indices would not match.  Assert this is the case.*/        \
+	ASSERT((_kbuf)->buf_addr == (mach_vm_address_t)(_kbuf)->buf_objaddr);\
+	/* Initialize user buflet metadata from kernel buflet */       \
+	UBUF_INIT(_kbuf, _ubuf);                                       \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define KBUF_EXTERNALIZE(_kbuf, _ubuf, _pp) do {                       \
 	ASSERT(BUFLET_FROM_RAW_BFLT_CACHE(_kbuf) ||                    \
 	        (_kbuf)->buf_dlim == BUFLET_HAS_LARGE_BUF(_kbuf) ?         \
@@ -293,7 +355,25 @@ struct __kern_buflet_ext {
 /*
  * Copy kernel buflet (and add reference count to buffer).
  */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define _KBUF_COPY(_skb, _dkb) do {                                     \
+	ASSERT((_skb)->buf_nbft_addr == 0);                             \
+	ASSERT((_skb)->buf_nbft_idx == OBJ_IDX_NONE);                   \
+	ASSERT(!((_dkb)->buf_flag & BUFLET_FLAG_EXTERNAL));             \
+	_CASSERT(sizeof(struct __kern_buflet) == 50);                   \
+	/* copy everything in the kernel buflet */                      \
+	sk_copy64_40((uint64_t *)(void *)(_skb), (uint64_t *)(void *)(_dkb));\
+	((uint64_t *)(void *)(_dkb))[5] = ((uint64_t *)(void *)(_skb))[5];   \
+	((uint16_t *)(void *)(_dkb))[24] = ((uint16_t *)(void *)(_skb))[24]; \
+	ASSERT((_dkb)->buf_ctl == (_skb)->buf_ctl);                     \
+	_CASSERT(sizeof((_dkb)->buf_flag) == sizeof(uint16_t));         \
+	*__DECONST(uint16_t *, &(_dkb)->buf_flag) &= ~BUFLET_FLAG_EXTERNAL;\
+	if (__probable((_dkb)->buf_ctl != NULL)) {                      \
+	        skmem_bufctl_use(__DECONST(struct skmem_bufctl *,       \
+	            (_dkb)->buf_ctl));                                  \
+	}                                                               \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define _KBUF_COPY(_skb, _dkb) do {                                     \
 	ASSERT((_skb)->buf_nbft_addr == 0);                             \
 	ASSERT((_skb)->buf_nbft_idx == OBJ_IDX_NONE);                   \
@@ -761,6 +841,16 @@ struct __kern_packet {
  * Copy optional meta data.
  * Both source and destination must be a kernel packet.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define _PKT_COPY_OPT_DATA(_skp, _dkp) do {                             \
+	if (__improbable(((_skp)->pkt_pflags & PKT_F_OPT_DATA) != 0)) { \
+	        _CASSERT(sizeof(struct __packet_opt) == 40);            \
+	        ASSERT((_skp)->pkt_pflags & PKT_F_OPT_ALLOC);           \
+	        sk_copy64_40((uint64_t *)(void *)(_skp)->pkt_com_opt,   \
+	            (uint64_t *)(void *)(_dkp)->pkt_com_opt);           \
+	}                                                               \
+} while (0)
+#else
 #define _PKT_COPY_OPT_DATA(_skp, _dkp) do {                             \
 	if (__improbable(((_skp)->pkt_pflags & PKT_F_OPT_DATA) != 0)) { \
 	        _CASSERT(sizeof(struct __packet_opt) == 32);            \
@@ -769,6 +859,7 @@ struct __kern_packet {
 	            (uint64_t *)(void *)(_dkp)->pkt_com_opt);           \
 	}                                                               \
 } while (0)
+#endif
 
 /*
  * _PKT_COPY only copies the user metadata portion of the packet;
@@ -839,6 +930,25 @@ struct __kern_packet {
  * NOTE: this needs to be adjusted if more user-mutable data is added
  * after __p_flags.  This macro is used only during externalize.
  */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define _PKT_EXTERNALIZE(_kp, _up) do {                                 \
+	_CASSERT(sizeof(struct __packet) == 32);                        \
+	_CASSERT(sizeof(struct __packet_com) == 32);                    \
+	_CASSERT(offsetof(struct __packet, __p_flags) == 24);           \
+	/* copy __packet excluding pkt_pflags */                        \
+	sk_copy64_24((uint64_t *)(void *)&(_kp)->pkt_com,               \
+	    (uint64_t *)(void *)&(_up)->pkt_com);                       \
+	/* copy pkt_pflags excluding kernel bits */                     \
+	(_up)->pkt_pflags = ((_kp)->pkt_pflags & PKT_F_USER_MASK);      \
+	/* copy (externalize) __packet_opt if applicable */             \
+	if (__improbable(((_kp)->pkt_pflags & PKT_F_OPT_DATA) != 0)) {  \
+	        _CASSERT(sizeof(struct __packet_opt) == 40);            \
+	        ASSERT((_kp)->pkt_pflags & PKT_F_OPT_ALLOC);            \
+	        sk_copy64_40((uint64_t *)(void *)(_kp)->pkt_com_opt,    \
+	            (uint64_t *)(void *)&(_up)->pkt_com_opt);           \
+	}                                                               \
+} while (0)
+#else
 #define _PKT_EXTERNALIZE(_kp, _up) do {                                 \
 	_CASSERT(sizeof(struct __packet) == 32);                        \
 	_CASSERT(sizeof(struct __packet_com) == 32);                    \
@@ -856,6 +966,7 @@ struct __kern_packet {
 	            (uint64_t *)(void *)&(_up)->pkt_com_opt);           \
 	}                                                               \
 } while (0)
+#endif
 
 #define SK_PTR_ADDR_KQUM(_ph)   ((struct __kern_quantum *)SK_PTR_ADDR(_ph))
 #define SK_PTR_ADDR_KPKT(_ph)   ((struct __kern_packet *)SK_PTR_ADDR(_ph))

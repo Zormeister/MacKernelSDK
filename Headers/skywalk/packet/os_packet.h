@@ -201,17 +201,51 @@ typedef uint16_t packet_trace_tag_t;
 #define PACKET_CSUM_DATA_VALID  0x0400    /* csum_rx_val is valid */
 #define PACKET_CSUM_PSEUDO_HDR  0x0800    /* csum_rx_val includes pseudo hdr */
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define PACKET_CSUM_IP          0x0004
+#define PACKET_CSUM_TCP         0x0008
+#define PACKET_CSUM_UDP         0x0010
+#define PACKET_CSUM_TCPIPV6     0x0020
+#define PACKET_CSUM_UDPIPV6     0x0040
+#endif
+
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 typedef enum : uint32_t {
 	PACKET_TSO_IPV4  = 0x00100000,
 	PACKET_TSO_IPV6  = 0x00200000,
 } packet_tso_flags_t;
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define PACKET_CSUM_TSO_IPV4 0x00100000
+#define PACKET_CSUM_TSO_IPV6 0x00200000
+
+#define PACKET_CSUM_TSO_FLAGS \
+	(PACKET_CSUM_TSO_IPV4 | PACKET_CSUM_TSO_IPV6)
+
+#define PACKET_HAS_FULL_CHECKSUM_FLAGS(_p) \
+	(((_p)->pkt_csum_flags & PACKET_CSUM_RX_FULL_FLAGS) == PACKET_CSUM_RX_FULL_FLAGS)
+
+#else
+
 #define PACKET_CSUM_TSO_FLAGS \
 	(PACKET_TSO_IPV4 | PACKET_TSO_IPV6)
 
 #define PACKET_HAS_FULL_CHECKSUM_FLAGS(_p) \
 	(((_p)->pkt_csum_flags & PACKET_CSUM_RX_FULL_FLAGS) == PACKET_CSUM_RX_FULL_FLAGS)
+
+#endif
+
+#endif
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define PACKET_TX_CSUM_OFFLOAD_FLAGS \
+	(PACKET_CSUM_IP | PACKET_CSUM_TCP | PACKET_CSUM_UDP | \
+	PACKET_CSUM_TCPIPV6 | PACKET_CSUM_UDPIPV6 | PACKET_CSUM_ZERO_INVERT)
+
+#define PACKET_CSUM_FLAGS \
+	(PACKET_TX_CSUM_OFFLOAD_FLAGS | PACKET_CSUM_RX_FLAGS | PACKET_CSUM_TSO_FLAGS)
 
 #endif
 
@@ -461,8 +495,13 @@ struct kern_pbufpool_init {
 #define KBIF_KERNEL_READONLY    0x400   /* kernel read-only */
 #define KBIF_NO_MAGAZINES       0x800   /* disable per-CPU magazines layer */
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define KBIF_RAW_BFLT           0x1000  /* configure raw buflet */
+#endif
+
 #define KBIF_THREADSAFE         0x2000  /* thread safe memory descriptor */
+
 #endif
 
 #define KERN_PBUFPOOL_VERSION_1         1
@@ -660,12 +699,22 @@ extern errno_t kern_packet_get_tx_nexus_port_id(const kern_packet_t,
     uint32_t *);
 extern errno_t kern_packet_get_app_metadata(const kern_packet_t,
     packet_app_metadata_type_t *, uint8_t *);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define NEW_KERN_PACKET_GET_PROTOCOL_SEGMENT_SIZE 1
+extern uint16_t kern_packet_get_protocol_segment_size(const kern_packet_t);
+#else
 extern errno_t kern_packet_get_protocol_segment_size(const kern_packet_t,
     uint16_t *);
+#endif
 extern void * kern_packet_get_priv(const kern_packet_t);
 extern void kern_packet_set_priv(const kern_packet_t, void *);
 extern void kern_packet_get_tso_flags(const kern_packet_t, packet_tso_flags_t *);
 void kern_packet_set_segment_count(const kern_packet_t, uint8_t);
+#endif
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern errno_t kern_packet_check_for_expiry_and_notify(const kern_packet_t ph, ifnet_t ifp,
+    uint16_t origin, uint16_t status);
 #endif
 
 /*
@@ -715,10 +764,17 @@ extern errno_t kern_packet_copy_bytes(const kern_packet_t, size_t, size_t,
  */
 extern errno_t kern_buflet_set_data_address(const kern_buflet_t, const void *);
 extern void *kern_buflet_get_data_address(const kern_buflet_t);
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern errno_t kern_buflet_set_data_offset(const kern_buflet_t, const uint32_t);
+extern uint32_t kern_buflet_get_data_offset(const kern_buflet_t);
+extern errno_t kern_buflet_set_data_length(const kern_buflet_t, const uint32_t);
+extern uint32_t kern_buflet_get_data_length(const kern_buflet_t);
+#else
 extern errno_t kern_buflet_set_data_offset(const kern_buflet_t, const uint16_t);
 extern uint16_t kern_buflet_get_data_offset(const kern_buflet_t);
 extern errno_t kern_buflet_set_data_length(const kern_buflet_t, const uint16_t);
 extern uint16_t kern_buflet_get_data_length(const kern_buflet_t);
+#endif
 extern void *kern_buflet_get_object_address(const kern_buflet_t);
 extern uint32_t kern_buflet_get_object_limit(const kern_buflet_t);
 extern kern_segment_t kern_buflet_get_object_segment(const kern_buflet_t,
@@ -726,7 +782,7 @@ extern kern_segment_t kern_buflet_get_object_segment(const kern_buflet_t,
 extern errno_t kern_buflet_set_data_limit(const kern_buflet_t, const uint16_t);
 extern uint16_t kern_buflet_get_data_limit(const kern_buflet_t);
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 extern errno_t kern_buflet_set_buffer_offset(const kern_buflet_t buf,
     const uint16_t off);
 extern uint16_t kern_buflet_get_buffer_offset(const kern_buflet_t buf);
@@ -739,6 +795,12 @@ extern errno_t kern_buflet_clone(const kern_buflet_t buf1,
     kern_buflet_t *pbuf_array, uint32_t *size, struct kern_pbufpool *pool);
 extern errno_t kern_buflet_clone_nosleep(const kern_buflet_t buf1,
     kern_buflet_t *pbuf_array, uint32_t *size, struct kern_pbufpool *pool);
+#endif
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern errno_t kern_buflet_set_data_limit(const kern_buflet_t, const uint32_t);
+extern uint32_t kern_buflet_get_data_limit(const kern_buflet_t);
+extern errno_t kern_buflet_set_buffer_offset(const kern_buflet_t, const uint32_t);
 #endif
 
 /*
@@ -777,7 +839,12 @@ extern errno_t kern_pbufpool_alloc_buffer_nosleep(const kern_pbufpool_t
     kern_obj_idx_seg_t *sg_idx);
 extern void kern_pbufpool_free_buffer(const kern_pbufpool_t pbufpool,
     mach_vm_address_t baddr);
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+extern errno_t kern_pbufpool_alloc_buflet(const kern_pbufpool_t,
+    kern_buflet_t *);
+extern errno_t kern_pbufpool_alloc_buflet_nosleep(const kern_pbufpool_t,
+    kern_buflet_t *);
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 extern errno_t kern_pbufpool_alloc_buflet(const kern_pbufpool_t,
     kern_buflet_t *, bool);
 extern errno_t kern_pbufpool_alloc_buflet_nosleep(const kern_pbufpool_t,

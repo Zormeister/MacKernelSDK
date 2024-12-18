@@ -67,7 +67,11 @@ struct kern_pbufpool {
 	uint32_t                pp_flags;
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 	uint32_t                pp_buf_obj_size[PBUFPOOL_MAX_BUF_REGIONS];
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	uint32_t                pp_buf_size[PBUFPOOL_MAX_BUF_REGIONS];
+#else
 	uint16_t                pp_buf_size[PBUFPOOL_MAX_BUF_REGIONS];
+#endif
 #else
 	uint16_t                pp_buflet_size;
 #endif
@@ -84,7 +88,9 @@ struct kern_pbufpool {
 	struct skmem_cache      *pp_kmd_cache;
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 	struct skmem_cache      *pp_kbft_cache[PBUFPOOL_MAX_BUF_REGIONS];
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 	struct skmem_cache      *pp_raw_kbft_cache;
+#endif
 #else
 	struct skmem_cache      *pp_kbft_cache;
 #endif
@@ -138,7 +144,9 @@ struct kern_pbufpool {
 #define PPF_DYNAMIC             0x80    /* capable of magazine resizing */
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define PPF_LARGE_BUF           0x100   /* configured with large buffers */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define PPF_RAW_BUFLT           0x200   /* configured with raw buflet */
+#endif
 #endif
 
 #define PP_KERNEL_ONLY(_pp)             \
@@ -160,8 +168,10 @@ struct kern_pbufpool {
 #define PP_HAS_LARGE_BUF(_pp)                 \
 	(((_pp)->pp_flags & PPF_LARGE_BUF) != 0)
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define PP_HAS_RAW_BFLT(_pp)                 \
 	(((_pp)->pp_flags & PPF_RAW_BUFLT) != 0)
+#endif
 #endif
 
 #define PP_LOCK(_pp)                    \
@@ -203,7 +213,7 @@ extern void pp_close(struct kern_pbufpool *);
 #define PPCREATEF_TRUNCATED_BUF 0x4     /* compat-only (buf is short) */
 #define PPCREATEF_ONDEMAND_BUF  0x8     /* buf alloc/free is decoupled */
 #define PPCREATEF_DYNAMIC       0x10    /* dynamic per-CPU magazines */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define PPCREATEF_RAW_BFLT      0x20    /* buflet can be alloced w/o buf */
 #endif
 
@@ -277,8 +287,10 @@ extern boolean_t pp_release(struct kern_pbufpool *);
 #define PP_REGION_CONFIG_BUF_SEGPHYSCONTIG     0x00000400
 /* configure packet pool buffer region as cache-inhibiting */
 #define PP_REGION_CONFIG_BUF_NOCACHE           0x00000800
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 /* configure buflet without buffer attached at construction */
 #define PP_REGION_CONFIG_RAW_BUFLET            0x00001000
+#endif
 /* configure packet pool buffer region (backing IOMD) as thread safe */
 #define PP_REGION_CONFIG_BUF_THREADSAFE        0x00002000
 
@@ -311,7 +323,14 @@ extern errno_t pp_alloc_buffer(const kern_pbufpool_t, mach_vm_address_t *,
     kern_segment_t *, kern_obj_idx_seg_t *, uint32_t);
 extern void pp_free_buffer(const kern_pbufpool_t, mach_vm_address_t);
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+extern errno_t pp_alloc_buflet(struct kern_pbufpool *pp, kern_buflet_t *kbft,
+    uint32_t skmflag, bool large);
+extern errno_t pp_alloc_buflet_batch(struct kern_pbufpool *pp, uint64_t *array,
+    uint32_t *size, uint32_t skmflag, bool large);
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 /* flags for pp_alloc_buflet */
 /* alloc a buflet with an attached large-sized buffer */
 #define PP_ALLOC_BFT_LARGE                        0x01

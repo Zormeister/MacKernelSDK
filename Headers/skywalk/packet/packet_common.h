@@ -731,7 +731,15 @@ __packet_get_l4s_flag(const uint64_t ph)
 
 #endif /* KERNEL */
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_1
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+__attribute__((always_inline))
+static inline void
+__packet_set_l4s_flag(const uint64_t ph)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	PKT_ADDR(ph)->pkt_pflags |= PKT_F_L4S;
+}
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_1
 __attribute__((always_inline))
 static inline void
 __packet_set_l4s_flag(const uint64_t ph, const boolean_t is_l4s)
@@ -919,8 +927,10 @@ __packet_set_inet_checksum(const uint64_t ph, const packet_csum_flags_t flags,
 {
 	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
-	PKT_ADDR(ph)->pkt_csum_flags = flags & (~PACKET_CSUM_TSO_FLAGS)
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	PKT_ADDR(ph)->pkt_csum_flags = flags & PACKET_CSUM_FLAGS;
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	PKT_ADDR(ph)->pkt_csum_flags = flags & (~PACKET_CSUM_TSO_FLAGS);
 #else
 	PKT_ADDR(ph)->pkt_csum_flags = flags;
 #endif
@@ -934,6 +944,17 @@ __packet_set_inet_checksum(const uint64_t ph, const packet_csum_flags_t flags,
 	}
 	return 0;
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+__attribute__((always_inline))
+static inline void
+__packet_add_inet_csum_flags(const uint64_t ph, const packet_csum_flags_t flags)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+
+	PKT_ADDR(ph)->pkt_csum_flags |= flags & PACKET_CSUM_FLAGS;
+}
+#endif
 
 __attribute__((always_inline))
 static inline packet_csum_flags_t
@@ -957,8 +978,10 @@ __packet_get_inet_checksum(const uint64_t ph, uint16_t *start,
 			*stuff_val = PKT_ADDR(ph)->pkt_csum_rx_value;
 		}
 	}
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
-	return PKT_ADDR(ph)->pkt_csum_flags & (~PACKET_CSUM_TSO_FLAGS)
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	return PKT_ADDR(ph)->pkt_csum_flags & PACKET_CSUM_FLAGS;
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+	return PKT_ADDR(ph)->pkt_csum_flags & (~PACKET_CSUM_TSO_FLAGS);
 #else
 	return PKT_ADDR(ph)->pkt_csum_flags;
 #endif
@@ -1090,7 +1113,9 @@ __packet_add_buflet(const uint64_t ph, const void *bprev0, const void *bnew0)
 
 	VERIFY(PKT_ADDR(ph) && bnew && (bnew != bprev));
 	VERIFY(PP_HAS_BUFFER_ON_DEMAND(PKT_ADDR(ph)->pkt_qum.qum_pp));
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 	VERIFY(bnew->buf_ctl != NULL);
+#endif
 #else /* !KERNEL */
 	buflet_t bprev = __DECONST(buflet_t, bprev0);
 	buflet_t bnew = __DECONST(buflet_t, bnew0);
@@ -1211,6 +1236,15 @@ __packet_set_segment_count(const uint64_t ph, uint8_t segcount)
 	PKT_ADDR(ph)->pkt_seg_cnt = segcount;
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+__attribute__((always_inline))
+static inline uint16_t
+__packet_get_protocol_segment_size(const uint64_t ph)
+{
+	PKT_TYPE_ASSERT(ph, NEXUS_META_TYPE_PACKET);
+	return PKT_ADDR(ph)->pkt_proto_seg_sz;
+}
+#else
 __attribute__((always_inline))
 static inline errno_t
 __packet_get_protocol_segment_size(const uint64_t ph, uint16_t *proto_seg_sz)
@@ -1220,6 +1254,7 @@ __packet_get_protocol_segment_size(const uint64_t ph, uint16_t *proto_seg_sz)
 	*proto_seg_sz =  PKT_ADDR(ph)->pkt_proto_seg_sz;
 	return 0;
 }
+#endif
 
 __attribute__((always_inline))
 static inline errno_t
@@ -1266,7 +1301,7 @@ __buflet_set_data_limit(const void *buf, const uint16_t dlim)
 	ASSERT(BLT_ADDR(buf)->buf_ctl->bc_flags & SKMEM_BUFCTL_SHAREOK);
 
 	/* full bounds checking will be performed during finalize */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 	if (__probable((uint32_t)dlim + BLT_ADDR(buf)->buf_boff <=
 	    BLT_ADDR(buf)->buf_objlim)) {
 #else
@@ -1274,7 +1309,11 @@ __buflet_set_data_limit(const void *buf, const uint16_t dlim)
 #endif
 		_CASSERT(sizeof(BLT_ADDR(buf)->buf_dlim) == sizeof(uint16_t));
 		/* deconst */
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+		*(uint32_t *)(uintptr_t)&BLT_ADDR(buf)->buf_dlim = dlim;
+#else
 		*(uint16_t *)(uintptr_t)&BLT_ADDR(buf)->buf_dlim = dlim;
+#endif
 		return 0;
 	}
 	return ERANGE;
@@ -1282,7 +1321,11 @@ __buflet_set_data_limit(const void *buf, const uint16_t dlim)
 #endif /* KERNEL */
 
 __attribute__((always_inline))
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+static inline uint32_t
+#else
 static inline uint16_t
+#endif
 __buflet_get_data_offset(const void *buf)
 {
 	return BLT_ADDR(buf)->buf_doff;
@@ -1338,7 +1381,7 @@ __packet_finalize(const uint64_t ph)
 		ASSERT(BLT_ADDR(bcur)->buf_addr != 0);
 #else  /* !KERNEL */
 		if (__improbable(bcur == NULL 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 			|| BLT_ADDR(bcur)->buf_grolen != 0)
 #endif
 		) {
@@ -1528,7 +1571,11 @@ __attribute__((always_inline))
 static inline int
 __packet_finalize_with_mbuf(struct __kern_packet *pkt)
 {
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	uint32_t bdoff, bdlim, bdlen;
+#else
 	uint16_t bdoff, bdlim, bdlen;
+#endif
 	struct __kern_buflet *buf;
 	int err = 0;
 
@@ -1853,7 +1900,7 @@ __attribute__((always_inline))
 static inline void *
 __buflet_get_data_address(const void *buf)
 {
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 
 #if (defined(KERNEL) && (DEBUG || DEVELOPMENT))
 	ASSERT(BLT_ADDR(buf)->buf_addr ==
@@ -1882,7 +1929,7 @@ __buflet_set_data_address(const void *buf, const void *addr)
 		*(mach_vm_address_t *)(uintptr_t)&BLT_ADDR(buf)->buf_addr =
 		    (mach_vm_address_t)addr;
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 
 		/* compute the offset from objaddr for the case of shared buffer */
 		_CASSERT(sizeof(BLT_ADDR(buf)->buf_boff) == sizeof(uint16_t));
@@ -1895,11 +1942,37 @@ __buflet_set_data_address(const void *buf, const void *addr)
 	}
 	return ERANGE;
 }
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+/*
+ * Equivalent to __buflet_set_data_address but based on offset, packets/buflets
+ * set with this should not be directly passed to userspace, since shared buffer
+ * is not yet supported by user facing pool.
+ */
+__attribute__((always_inline))
+static inline int
+__buflet_set_buffer_offset(const void *buf, const uint32_t off)
+{
+	ASSERT(BLT_ADDR(buf)->buf_objlim != 0);
+
+	if (__probable(off <= BLT_ADDR(buf)->buf_objlim)) {
+		*(mach_vm_address_t *)(uintptr_t)&BLT_ADDR(buf)->buf_addr =
+		    (mach_vm_address_t)BLT_ADDR(buf)->buf_objaddr + off;
+		return 0;
+	}
+	return ERANGE;
+}
+#endif
+
 #endif /* KERNEL */
 
 __attribute__((always_inline))
 static inline int
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+__buflet_set_data_offset(const void *buf, const uint32_t doff)
+#else
 __buflet_set_data_offset(const void *buf, const uint16_t doff)
+#endif
 {
 #ifdef KERNEL
 	/*
@@ -1909,7 +1982,7 @@ __buflet_set_data_offset(const void *buf, const uint16_t doff)
 	 */
 	ASSERT(BLT_ADDR(buf)->buf_dlim != 0);
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 	if (__probable(doff + BLT_ADDR(buf)->buf_boff <=
 	    BLT_ADDR(buf)->buf_objlim)) {
 #else
@@ -1927,7 +2000,11 @@ __buflet_set_data_offset(const void *buf, const uint16_t doff)
 
 __attribute__((always_inline))
 static inline int
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+__buflet_set_data_length(const void *buf, const uint32_t dlen)
+#else
 __buflet_set_data_length(const void *buf, const uint16_t dlen)
+#endif
 {
 #ifdef KERNEL
 	/*
@@ -1948,7 +2025,7 @@ __buflet_set_data_length(const void *buf, const uint16_t dlen)
 #endif /* KERNEL */
 }
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #ifdef KERNEL
 __attribute__((always_inline))
 static inline int
@@ -2040,7 +2117,11 @@ __buflet_get_next_buf(const void *buflet, const void *prev_buf)
 #endif
 
 __attribute__((always_inline))
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+static inline uint32_t
+#else
 static inline uint16_t
+#endif
 __buflet_get_data_length(const void *buf)
 {
 	return BLT_ADDR(buf)->buf_dlen;

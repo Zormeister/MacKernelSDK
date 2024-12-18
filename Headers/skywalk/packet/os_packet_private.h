@@ -260,11 +260,17 @@ struct __buflet {
 	const obj_idx_t __bidx;
 	/* object index in buflet region of next buflet(for buflet chaining) */
 	const obj_idx_t __nbft_idx;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	const uint32_t  __dlim;         /* maximum length */
+	uint32_t        __doff;         /* offset of data in buflet */
+	uint32_t        __dlen;         /* length of data in buflet */
+#else
 	const uint16_t  __dlim;         /* maximum length */
 	uint16_t        __dlen;         /* length of data in buflet */
 	uint16_t        __doff;         /* offset of data in buflet */
+#endif
 	const uint16_t  __flag;
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 	const uint16_t  __gro_len;      /* length of each gro segement */
 	/* offset of buf_addr relative to the start of the buffer object */
 	const uint16_t  __buf_off;
@@ -274,6 +280,10 @@ struct __buflet {
 #endif
 #define BUFLET_FLAG_EXTERNAL    0x0001
 } __attribute((packed));
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define BUFLET_FLAG_LARGE_BUF   0x0002 /* buflet holds large buffer */
+#endif
 
 /*
  * A buflet represents the smallest buffer fragment representing
@@ -296,13 +306,16 @@ struct __user_buflet {
 #define buf_doff        buf_com.__doff
 #define buf_flag        buf_com.__flag
 #define buf_bft_idx_reg buf_com.__bft_idx
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0 && __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_14_0
 #define buf_grolen      buf_com.__gro_len
 #define buf_boff        buf_com.__buf_off
 #endif
 };
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define BUFLET_HAS_LARGE_BUF(_buf)          \
+	(((_buf)->buf_flag & BUFLET_FLAG_LARGE_BUF) != 0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define BUFLET_HAS_LARGE_BUF(_buf)          \
 	(((_buf)->buf_flag & BUFLET_FLAG_LARGE_BUF) != 0)
 #define BUFLET_FROM_RAW_BFLT_CACHE(_buf)    \
@@ -333,7 +346,21 @@ struct __user_buflet {
 } while (0)
 
 #ifdef KERNEL
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define BUF_CTOR(_buf, _baddr, _bidx, _dlim, _dlen, _doff, _nbaddr, _nbidx, _bflag) do {  \
+	_CASSERT(sizeof ((_buf)->buf_addr) == sizeof (mach_vm_address_t)); \
+	_CASSERT(sizeof ((_buf)->buf_idx) == sizeof (obj_idx_t));       \
+	_CASSERT(sizeof ((_buf)->buf_dlim) == sizeof (uint32_t));       \
+	BUF_BADDR(_buf, _baddr);                                        \
+	BUF_NBFT_ADDR(_buf, _nbaddr);                                   \
+	BUF_BIDX(_buf, _bidx);                                          \
+	BUF_NBFT_IDX(_buf, _nbidx);                                     \
+	*(uint32_t *)(uintptr_t)&(_buf)->buf_dlim = (_dlim);            \
+	(_buf)->buf_dlen = (_dlen);                                     \
+	(_buf)->buf_doff = (_doff);                                     \
+	*(uint16_t *)(uintptr_t)&(_buf)->buf_flag = (_bflag);           \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define BUF_CTOR(_buf, _baddr, _bidx, _dlim, _dlen, _doff, _nbaddr, _nbidx, _bflag, _boff, _grolen) do {  \
 	_CASSERT(sizeof ((_buf)->buf_addr) == sizeof (mach_vm_address_t)); \
 	_CASSERT(sizeof ((_buf)->buf_idx) == sizeof (obj_idx_t));       \
@@ -376,7 +403,7 @@ struct __user_buflet {
 #endif /* KERNEL */
 
 #ifdef KERNEL
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
 #define BUF_IN_RANGE(_buf)                                              \
 	((_buf)->buf_addr >= (mach_vm_address_t)(_buf)->buf_objaddr &&  \
 	((uintptr_t)(_buf)->buf_addr + (_buf)->buf_dlim) <=             \
@@ -384,6 +411,12 @@ struct __user_buflet {
 	((mach_vm_address_t)(_buf)->buf_objaddr + (_buf)->buf_boff == (_buf)->buf_addr) && \
 	((_buf)->buf_doff + (_buf)->buf_dlen) <= (_buf)->buf_dlim &&    \
 	(_buf)->buf_grolen <= (_buf)->buf_dlen)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#define BUF_IN_RANGE(_buf)                                              \
+	((_buf)->buf_addr >= (mach_vm_address_t)(_buf)->buf_objaddr &&  \
+	((uintptr_t)(_buf)->buf_addr + (_buf)->buf_dlim) <=             \
+	((uintptr_t)(_buf)->buf_objaddr + (_buf)->buf_objlim) &&        \
+	((_buf)->buf_doff + (_buf)->buf_dlen) <= (_buf)->buf_dlim)
 #else
 #define BUF_IN_RANGE(_buf)                                              \
 	((_buf)->buf_addr >= (mach_vm_address_t)(_buf)->buf_objaddr &&  \
@@ -510,7 +543,18 @@ struct __user_quantum {
 #endif /* KERNEL */
 
 #ifdef KERNEL
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define _KQUM_CTOR(_kqum, _flags, _len, _baddr, _bidx, _dlim, _qidx) do {    \
+	(_kqum)->qum_flow_id_val64[0] = 0;                                   \
+	(_kqum)->qum_flow_id_val64[1] = 0;                                   \
+	(_kqum)->qum_qflags = (_flags);                                      \
+	(_kqum)->qum_len = (_len);                                           \
+	_CASSERT(sizeof(METADATA_IDX(_kqum)) == sizeof(obj_idx_t));          \
+	*(obj_idx_t *)(uintptr_t)&METADATA_IDX(_kqum) = (_qidx);             \
+	BUF_CTOR(&(_kqum)->qum_buf[0], (_baddr), (_bidx), (_dlim), 0, 0, 0,  \
+	    OBJ_IDX_NONE, 0);                                                \
+} while (0)
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define _KQUM_CTOR(_kqum, _flags, _len, _baddr, _bidx, _dlim, _qidx) do {    \
 	(_kqum)->qum_flow_id_val64[0] = 0;                                   \
 	(_kqum)->qum_flow_id_val64[1] = 0;                                   \
@@ -678,6 +722,10 @@ struct __packet_opt_com {
 		uint8_t         __token[PKT_OPT_MAX_TOKEN_SIZE];
 	};
 	uint64_t        __expire_ts;
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+	uint64_t        __pkt_tx_time;
+#endif
+
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 	uint16_t        __vlan_tag;
 	uint16_t        __token_len;
@@ -690,7 +738,11 @@ struct __packet_opt_com {
 
 struct __packet_opt {
 	union {
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+		uint64_t                __pkt_opt_data[5];
+#else
 		uint64_t                __pkt_opt_data[4];
+#endif
 		struct __packet_opt_com __pkt_opt_com;
 	};
 #define __po_token_type         __pkt_opt_com.__token_type
@@ -703,6 +755,9 @@ struct __packet_opt {
 #define __po_expiry_action      __pkt_opt_com.__expiry_action
 #define __po_app_type           __pkt_opt_com.__app_type
 #define __po_app_metadata       __pkt_opt_com.__app_metadata
+#endif
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define __po_pkt_tx_time        __pkt_opt_com.__pkt_tx_time
 #endif
 };
 
@@ -874,6 +929,9 @@ struct __user_packet {
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_1
 #define PKT_F_L4S               0x0000800000000000ULL /* (U+K) */
 #endif
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+#define PKT_F_OPT_TX_TIMESTAMP  0x0001000000000000ULL /* (U+K) */
+#endif
 /*                              0x0008000000000000ULL */
 /*                              0x0010000000000000ULL */
 /*                              0x0020000000000000ULL */
@@ -891,7 +949,15 @@ struct __user_packet {
 /*
  * Packet option flags.
  */
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_14_0
+
+#define PKT_F_OPT_DATA                                                  \
+	(PKT_F_OPT_GROUP_START | PKT_F_OPT_GROUP_END |                  \
+	PKT_F_OPT_EXPIRE_TS | PKT_F_OPT_TOKEN |                         \
+	PKT_F_OPT_VLTAG | PKT_F_OPT_VLTAG_IN_PKT | PKT_F_OPT_EXP_ACTION | \
+	PKT_F_OPT_APP_METADATA | PKT_F_OPT_TX_TIMESTAMP)
+
+#elif __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_13_0
 #define PKT_F_OPT_DATA                                                  \
 	(PKT_F_OPT_GROUP_START | PKT_F_OPT_GROUP_END |                  \
 	PKT_F_OPT_EXPIRE_TS | PKT_F_OPT_TOKEN |                         \
